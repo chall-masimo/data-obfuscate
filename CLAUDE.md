@@ -120,6 +120,41 @@ Suggested default strategy by type: `Identifier`→`HashId`, `Zip`→`ZipRemap`,
 `Date`→`DateShift`, `Measure`/`Count`→`Perturb`, `Boolean`/`Categorical`→`Keep`,
 `FreeText`→`Redact`. These are suggestions only; the user confirms every column.
 
+Decisions made while building step 2 (implemented in `CsvMasker.Core/Profiling`):
+- **Extra types:** `Text` (no rule matched) → suggest `Redact`, since it may be sensitive.
+  `Empty` (no non-blank values) → suggest `Keep`. **`Keep` is always an allowed choice for
+  every type**, so the user can leave any field alone; it just has to be chosen explicitly.
+- **Distinct counts** are exact up to `ExactDistinctLimit` (default 1,000) per column, then a
+  HyperLogLog estimate (16 KB per column, ≤ ~2% error). This bounds profiling memory on wide
+  files. `DistinctIsEstimate` is true for an estimate **or** when the file is longer than the
+  sample.
+- **Null vs blank:** null = unquoted empty; blank = quoted `""` or whitespace-only. They are
+  counted separately. Distinct counts, lengths and patterns use the remaining values.
+- **"Matches a pattern"** means ≥ 95% of non-blank values (`PatternMatchRatio`), so a few
+  dirty values don't break detection.
+- **Precedence** (first match wins): Empty → Email → Zip → Phone → Date/DateTime → Boolean →
+  State → Identifier → Person/Org name → City → Address → Count → hinted Measure → Categorical
+  → other numeric (Measure) → FreeText → Text. Details:
+  - Zip needs a `zip`/`postal` name hint, unless the values are ZIP+4.
+  - Phone needs a name hint, unless the values are *formatted*. Bare 10-digit numbers are
+    identifiers.
+  - `ID`/`Key`/`No`/`Number` at the end of a name is a strong identifier hint. `Code` is weak:
+    it only counts with high cardinality or leading zeros, so `Region_Code` with 6 values is
+    Categorical.
+  - Value-only identifier rules (fixed-width codes, near-unique integers) yield to a
+    count/measure name hint (`Number_of_Beds`, `Amount`).
+  - Person vs org is decided by the qualifier closest before `Name`, so `Account_Owner_Name`
+    is a person.
+- **Dates:** formats are tried with InvariantCulture. A digit-only `yyyyMMdd` needs a date-like
+  name hint. Excel serial numbers are not dates (v1). When every value fits both M/d and d/M,
+  month/day (US) is assumed and a warning is shown. Mixed formats in one column are allowed
+  and all recorded.
+- **Numbers:** US formats only (`$1,234.50`, `(12.00)`). Decimal-comma values are text in v1.
+- **Sample values** are the first 5 distinct non-blank values. They are in memory only, and
+  `ToString()` on profiles omits them. Reasons and warnings never contain cell values.
+- **Malformed rows** (field-count mismatch) found while profiling are skipped and listed by
+  record number (first 100 + total). Quote errors stop the profile.
+
 ---
 
 ## Masking strategies
