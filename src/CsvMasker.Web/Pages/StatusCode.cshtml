@@ -4,7 +4,13 @@
     ViewData["Title"] = Model.Code == 403 ? "Access denied" : "Not found";
 }
 
-@if (Model.Code == 403)
+@if (Model.Code == 403 && Model.IsMember)
+{
+    <h1 class="h3" data-test="not-allowed">You can't do that</h1>
+    <p>Only the owner of an item can change or delete it.</p>
+    <p><a asp-page="/Index">Back to the start</a></p>
+}
+else if (Model.Code == 403)
 {
     <h1 class="h3" data-test="access-denied">You don't have access to CSV Masker</h1>
     <p>

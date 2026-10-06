@@ -18,6 +18,8 @@ public sealed class TempFileStore
 
         if (IsInside(Folder, environment.WebRootPath))
             throw new InvalidOperationException("Storage:TempFolder must be outside the web root.");
+        if (IsInside(Folder, options.Value.ResolveRecipeFolder()) || IsInside(options.Value.ResolveRecipeFolder(), Folder))
+            throw new InvalidOperationException("Storage:TempFolder and Storage:RecipeFolder must be separate folders (the sweeper deletes old temp files).");
 
         Directory.CreateDirectory(Folder);
     }
@@ -53,7 +55,7 @@ public sealed class TempFileStore
 
     public IEnumerable<FileInfo> Files() => new DirectoryInfo(Folder).EnumerateFiles();
 
-    private static bool IsInside(string folder, string? root)
+    public static bool IsInside(string folder, string? root)
     {
         if (string.IsNullOrEmpty(root))
             return false;

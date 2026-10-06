@@ -1,6 +1,7 @@
 using CsvMasker.Web.Infrastructure;
 using CsvMasker.Web.Jobs;
 using CsvMasker.Web.Options;
+using CsvMasker.Web.Recipes;
 using CsvMasker.Web.Storage;
 using Microsoft.AspNetCore.Authentication.Negotiate;
 using Microsoft.AspNetCore.Authorization;
@@ -11,6 +12,7 @@ using Microsoft.Extensions.Options;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddOptions<StorageOptions>().BindConfiguration(StorageOptions.Section).ValidateDataAnnotations().ValidateOnStart();
+builder.Services.AddSingleton<IValidateOptions<StorageOptions>, StorageOptionsValidator>();
 builder.Services.AddOptions<LimitsOptions>().BindConfiguration(LimitsOptions.Section).ValidateDataAnnotations().ValidateOnStart();
 builder.Services.AddOptions<AccessOptions>().BindConfiguration(AccessOptions.Section).ValidateOnStart();
 builder.Services.AddSingleton<IValidateOptions<AccessOptions>, AccessOptionsValidator>();
@@ -48,6 +50,13 @@ builder.Services.AddSingleton<TempFileStore>();
 builder.Services.AddSingleton<JobRegistry>();
 builder.Services.AddSingleton<JobRunner>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<JobRunner>());
+builder.Services.AddSingleton(sp =>
+{
+    string folder = sp.GetRequiredService<IOptions<StorageOptions>>().Value.ResolveRecipeFolder();
+    if (TempFileStore.IsInside(folder, sp.GetRequiredService<IWebHostEnvironment>().WebRootPath))
+        throw new InvalidOperationException("Storage:RecipeFolder must be outside the web root.");
+    return new RecipeStore(folder, sp.GetRequiredService<TimeProvider>(), sp.GetRequiredService<ILogger<RecipeStore>>());
+});
 builder.Services.AddSingleton<TempFolderSweeper>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<TempFolderSweeper>());
 
@@ -55,8 +64,10 @@ builder.Services.AddRazorPages();
 
 var app = builder.Build();
 
-// Fail at startup, not on the first upload, if the temp folder is misconfigured.
+// Fail at startup, not on the first upload, if a storage folder is misconfigured.
+_ = app.Services.GetRequiredService<IOptions<StorageOptions>>().Value;
 _ = app.Services.GetRequiredService<TempFileStore>();
+_ = app.Services.GetRequiredService<RecipeStore>();
 
 if (!app.Environment.IsDevelopment())
 {

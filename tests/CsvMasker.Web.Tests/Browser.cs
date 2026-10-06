@@ -49,7 +49,10 @@ public sealed partial class Browser(HttpClient client, string pathBase)
     public Task<(HttpStatusCode Status, string? Redirect, string? Error)> UploadAsync(string csv, string fileName = "data.csv") =>
         UploadAsync(Encoding.UTF8.GetBytes(csv), fileName);
 
-    /// <summary>Posts back the first form on the page whose action contains <paramref name="actionContains"/>, with its current field values plus overrides.</summary>
+    /// <summary>
+    /// Posts back the first form on the page whose action contains <paramref name="actionContains"/>
+    /// (or whose data-test attribute equals it), with its current field values plus overrides.
+    /// </summary>
     public async Task<HttpResponseMessage> SubmitAsync(string pageUrl, string actionContains, IDictionary<string, string>? overrides = null, ISet<string>? remove = null)
     {
         string page = await GetAsync(pageUrl);
@@ -61,7 +64,8 @@ public sealed partial class Browser(HttpClient client, string pathBase)
         foreach (Match form in Form().Matches(page))
         {
             string action = Decode(Attribute(form.Groups["attrs"].Value, "action") ?? pageUrl);
-            if (!action.Contains(actionContains, StringComparison.Ordinal))
+            bool named = Attribute(form.Groups["attrs"].Value, "data-test") == actionContains;
+            if (!named && !action.Contains(actionContains, StringComparison.Ordinal))
                 continue;
 
             var fields = Fields(form.Groups["body"].Value);

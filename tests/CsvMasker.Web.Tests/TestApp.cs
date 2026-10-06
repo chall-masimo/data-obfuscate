@@ -31,12 +31,21 @@ public sealed class TestApp : WebApplicationFactory<Program>
         Settings = settings ?? new Dictionary<string, string?>();
         Settings.TryAdd("Authorization:AllowedGroup", Group);
         _environment = environment;
-        TempFolder = Path.Combine(Path.GetTempPath(), "CsvMaskerWebTests", Guid.NewGuid().ToString("N"));
+        string root = Path.Combine(Path.GetTempPath(), "CsvMaskerWebTests", Guid.NewGuid().ToString("N"));
+        TempFolder = Path.Combine(root, "temp");
+        RecipeFolder = Path.Combine(root, "recipes");
+        Settings.TryAdd("Storage:RecipeFolder", RecipeFolder);
+        _root = root;
     }
+
+    private readonly string _root;
 
     public string PathBase { get; }
     public IDictionary<string, string?> Settings { get; }
     public string TempFolder { get; }
+    public string RecipeFolder { get; }
+
+    public string[] RecipeFiles() => Directory.Exists(RecipeFolder) ? Directory.GetFiles(RecipeFolder) : [];
     public LogCapture Logs { get; } = new();
 
     public string[] TempFiles() => Directory.Exists(TempFolder) ? Directory.GetFiles(TempFolder) : [];
@@ -86,8 +95,8 @@ public sealed class TestApp : WebApplicationFactory<Program>
         base.Dispose(disposing);
         try
         {
-            if (Directory.Exists(TempFolder))
-                Directory.Delete(TempFolder, recursive: true);
+            if (Directory.Exists(_root))
+                Directory.Delete(_root, recursive: true);
         }
         catch (IOException)
         {

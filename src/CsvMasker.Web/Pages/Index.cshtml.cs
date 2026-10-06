@@ -4,6 +4,7 @@ using CsvMasker.Core.Profiling;
 using CsvMasker.Web.Infrastructure;
 using CsvMasker.Web.Jobs;
 using CsvMasker.Web.Options;
+using CsvMasker.Web.Recipes;
 using CsvMasker.Web.Storage;
 using CsvMasker.Web.Upload;
 using Microsoft.AspNetCore.Mvc;
@@ -21,6 +22,7 @@ namespace CsvMasker.Web.Pages;
 public sealed class IndexModel(
     JobRegistry registry,
     TempFileStore store,
+    RecipeStore recipes,
     TimeProvider time,
     IOptions<LimitsOptions> limits,
     ILogger<IndexModel> logger) : PageModel
@@ -62,7 +64,14 @@ public sealed class IndexModel(
             return Error(StatusCodes.Status422UnprocessableEntity, SafeErrors.ForUser(ex));
         }
 
-        var job = new Job(owner, upload.FileName, upload.Path, profile, MaskingPlan.FromSuggestions(profile), time.GetUtcNow());
+        // Pre-fill from the best matching recipe (exact layout, or ≥ 50% of columns), else from suggestions.
+        var match = RecipeMatcher.Best(profile.Header.OriginalNames, recipes.List());
+        var plan = match is null ? MaskingPlan.FromSuggestions(profile) : RecipeMatcher.Apply(profile, match.Recipe);
+        var job = new Job(owner, upload.FileName, upload.Path, profile, plan, time.GetUtcNow())
+        {
+            Recipe = match is null ? null : AppliedRecipe.From(match),
+            SkipMalformed = match?.Recipe.SkipMalformed ?? false,
+        };
         if (!registry.TryAdd(job))
         {
             store.Delete(upload.Path);
@@ -70,8 +79,9 @@ public sealed class IndexModel(
         }
 
         logger.LogInformation(
-            "Job {JobId} uploaded by {User}: {Bytes} bytes, {Columns} columns, {Rows} rows profiled in {ElapsedMs} ms",
-            job.Id, owner, upload.Bytes, profile.Columns.Count, profile.RowsProfiled, stopwatch.ElapsedMilliseconds);
+            "Job {JobId} uploaded by {User}: {Bytes} bytes, {Columns} columns, {Rows} rows profiled in {ElapsedMs} ms; recipe {RecipeId} ({Match})",
+            job.Id, owner, upload.Bytes, profile.Columns.Count, profile.RowsProfiled, stopwatch.ElapsedMilliseconds,
+            match?.Recipe.Id, match?.Kind.ToString() ?? "none");
         return new JsonResult(new { redirect = Url.Page("/Jobs/Review", new { id = job.Id }) });
     }
 

@@ -22,7 +22,7 @@ public class WorkflowTests
         Assert.True(upload.Status == HttpStatusCode.OK, upload.Error);
         string reviewUrl = upload.Redirect!;
 
-        var review = await browser.SubmitAsync(reviewUrl, "/Review", new Dictionary<string, string> { ["Confirmed"] = "true" });
+        var review = await browser.SubmitAsync(reviewUrl, "review-form", new Dictionary<string, string> { ["Confirmed"] = "true" });
         Assert.Equal(HttpStatusCode.Redirect, review.StatusCode);
         return reviewUrl.Replace("/Review", "", StringComparison.Ordinal);
     }
@@ -95,7 +95,7 @@ public class WorkflowTests
         var browser = app.Browser();
         var upload = await browser.UploadAsync(SampleCsv());
 
-        var response = await browser.SubmitAsync(upload.Redirect!, "/Review", remove: new HashSet<string> { "Confirmed" });
+        var response = await browser.SubmitAsync(upload.Redirect!, "review-form", remove: new HashSet<string> { "Confirmed" });
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Contains("confirm you have reviewed every column", await response.Content.ReadAsStringAsync());
@@ -112,7 +112,7 @@ public class WorkflowTests
         var browser = app.Browser();
         var upload = await browser.UploadAsync(SampleCsv());
 
-        var response = await browser.SubmitAsync(upload.Redirect!, "/Review", new Dictionary<string, string>
+        var response = await browser.SubmitAsync(upload.Redirect!, "review-form", new Dictionary<string, string>
         {
             ["Confirmed"] = "true",
             ["Columns[3].PerturbPercent"] = "150",

@@ -29,6 +29,52 @@
     }
 </p>
 
+@if (Model.Notice is not null)
+{
+    <div class="alert alert-warning">@Model.Notice</div>
+}
+
+@{ var applied = Model.Job.Recipe; }
+@if (applied is null)
+{
+    <div class="alert alert-light border" data-test="recipe-none">Pre-filled from the profiler's suggestions.</div>
+}
+else if (applied.Kind == CsvMasker.Web.Recipes.RecipeMatchKind.Exact)
+{
+    <div class="alert alert-info" data-test="recipe-exact">
+        Pre-filled from recipe <strong>@applied.Name</strong> (saved by @applied.Owner); exact match for this file's columns.
+    </div>
+}
+else
+{
+    <div class="alert alert-warning" data-test="recipe-partial">
+        Pre-filled from recipe <strong>@applied.Name</strong> (saved by @applied.Owner); partial match:
+        @applied.Matched of @applied.Total columns.
+        @if (applied.Unassigned > 0)
+        {
+            <strong>@applied.Unassigned column(s) are new and need a strategy</strong><span> (highlighted below).</span>
+        }
+    </div>
+}
+
+@if (Model.RecipeChoices.Count > 0)
+{
+    <form method="post" asp-page-handler="ApplyRecipe" asp-route-id="@Model.Job.Id" class="d-flex flex-wrap gap-2 align-items-center mb-3" data-test="recipe-selector">
+        <label for="recipeId" class="small text-muted">Pre-fill from</label>
+        <select id="recipeId" name="recipeId" class="form-select form-select-sm w-auto">
+            <option value="">Profiler suggestions</option>
+            @foreach (var choice in Model.RecipeChoices)
+            {
+                <option value="@choice.Recipe.Id" selected="@(applied?.Id == choice.Recipe.Id)">
+                    @choice.Recipe.Name (@choice.Recipe.Owner) — @(choice.Kind == CsvMasker.Web.Recipes.RecipeMatchKind.Exact ? "exact match" : $"{choice.Matched} of {choice.Total} columns")
+                </option>
+            }
+        </select>
+        <button type="submit" class="btn btn-outline-secondary btn-sm">Apply</button>
+        <span class="small text-muted">Applying replaces the choices below.</span>
+    </form>
+}
+
 <form method="post" data-test="review-form">
     <div asp-validation-summary="All" class="text-danger"></div>
     @if (Model.PlanProblems.Count > 0)
@@ -56,7 +102,8 @@
                 @for (int i = 0; i < Model.Columns.Count; i++)
                 {
                     var column = Model.ProfileFor(Model.Columns[i]);
-                    <tr data-column-row>
+                    bool unassigned = Model.Columns[i].Strategy is null;
+                    <tr data-column-row class="@(unassigned ? "table-warning" : "")" data-unassigned="@(unassigned ? "true" : "false")">
                         <td>
                             <input type="hidden" asp-for="Columns[i].Key" />
                             <strong>@(string.IsNullOrWhiteSpace(column.OriginalName) ? "(blank)" : column.OriginalName)</strong>
@@ -85,7 +132,13 @@
                             }
                         </td>
                         <td>
-                            <select asp-for="Columns[i].Strategy" asp-items="strategies" class="form-select form-select-sm" data-strategy-select></select>
+                            <select asp-for="Columns[i].Strategy" asp-items="strategies" class="form-select form-select-sm" data-strategy-select>
+                                <option value="">— choose —</option>
+                            </select>
+                            @if (unassigned && Model.Suggestions.TryGetValue(column.Key, out var suggested))
+                            {
+                                <div class="small text-muted">Not in the recipe. Suggested: @suggested.Strategy</div>
+                            }
                             <div class="opt mt-1" data-for="Fake">
                                 <select asp-for="Columns[i].FakeKind" asp-items="fakeKinds" class="form-select form-select-sm"></select>
                             </div>

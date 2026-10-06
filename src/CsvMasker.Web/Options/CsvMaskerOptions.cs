@@ -20,6 +20,21 @@ public sealed class StorageOptions
         string.IsNullOrWhiteSpace(TempFolder)
             ? Path.Combine(Path.GetTempPath(), "CsvMasker")
             : Path.GetFullPath(TempFolder);
+
+    /// <summary>Empty is only allowed in Development (see <see cref="StorageOptionsValidator"/>).</summary>
+    public string ResolveRecipeFolder() =>
+        string.IsNullOrWhiteSpace(RecipeFolder)
+            ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CsvMasker", "recipes")
+            : Path.GetFullPath(RecipeFolder);
+}
+
+/// <summary>Recipes are kept permanently, so production must say where: no silent default outside Development.</summary>
+public sealed class StorageOptionsValidator(IHostEnvironment environment) : Microsoft.Extensions.Options.IValidateOptions<StorageOptions>
+{
+    public Microsoft.Extensions.Options.ValidateOptionsResult Validate(string? name, StorageOptions options) =>
+        string.IsNullOrWhiteSpace(options.RecipeFolder) && !environment.IsDevelopment()
+            ? Microsoft.Extensions.Options.ValidateOptionsResult.Fail("Storage:RecipeFolder is not set. Set it to a folder outside the web root where saved recipes are kept.")
+            : Microsoft.Extensions.Options.ValidateOptionsResult.Success;
 }
 
 public sealed class LimitsOptions

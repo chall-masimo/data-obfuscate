@@ -1,0 +1,49 @@
+@page
+@model CsvMasker.Web.Pages.Recipes.IndexModel
+@{
+    ViewData["Title"] = "Recipes";
+}
+
+<h1 class="h3">Recipes</h1>
+<p class="text-muted">
+    Saved strategies for a file layout. A matching upload is pre-filled automatically: an exact match for the same columns,
+    or the best recipe sharing at least half of the file's columns. Recipes contain column names and settings only, never data.
+    Save one from a finished job's page.
+</p>
+
+@if (Model.Message is not null)
+{
+    <div class="alert alert-success">@Model.Message</div>
+}
+
+@if (Model.Recipes.Count == 0)
+{
+    <p data-test="no-recipes">No recipes yet.</p>
+}
+else
+{
+    <table class="table table-sm" data-test="recipes">
+        <thead>
+            <tr><th>Name</th><th>Owner</th><th>Columns</th><th>Updated</th><th></th></tr>
+        </thead>
+        <tbody>
+            @foreach (var recipe in Model.Recipes)
+            {
+                <tr>
+                    <td>@recipe.Name</td>
+                    <td>@recipe.Owner</td>
+                    <td title="@string.Join(", ", recipe.Columns.Select(c => c.Name))">@recipe.Columns.Count</td>
+                    <td>@recipe.Updated.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</td>
+                    <td>
+                        @if (recipe.IsOwnedBy(Model.CurrentUser))
+                        {
+                            <form method="post" asp-page-handler="Delete" asp-route-recipeId="@recipe.Id">
+                                <button type="submit" class="btn btn-outline-danger btn-sm" data-test="delete-recipe">Delete</button>
+                            </form>
+                        }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}

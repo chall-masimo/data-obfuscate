@@ -16,6 +16,14 @@ public enum JobState
     Cancelled,
 }
 
+public sealed record AppliedRecipe(Guid Id, string Name, string Owner, Recipes.RecipeMatchKind Kind, int Matched, int Total)
+{
+    public int Unassigned => Total - Matched;
+
+    public static AppliedRecipe From(Recipes.RecipeMatch match) =>
+        new(match.Recipe.Id, match.Recipe.Name, match.Recipe.Owner, match.Kind, match.Matched, match.Total);
+}
+
 public static class JobSteps
 {
     /// <summary>The page for the job's current step.</summary>
@@ -66,8 +74,16 @@ public sealed class Job
     public FileProfile Profile { get; }
     public CsvDialect Dialect => Profile.Dialect;
 
+    /// <summary>
+    /// The current plan. Before review it may be partial: columns a recipe didn't cover are
+    /// absent, so they show as unassigned and block the run until chosen.
+    /// </summary>
     public MaskingPlan Plan { get; set; }
+
     public bool SkipMalformed { get; set; }
+
+    /// <summary>The recipe the plan was pre-filled from, if any.</summary>
+    public AppliedRecipe? Recipe { get; set; }
 
     /// <summary>Created when the review is confirmed; holds the per-job key used for preview and run.</summary>
     public MaskingSession? Session { get; set; }

@@ -80,6 +80,33 @@
             </form>
         }
 
+        <div class="card card-body mb-3" style="max-width: 48rem" data-test="save-recipe">
+            <h2 class="h6">Save as a recipe</h2>
+            <p class="small text-muted mb-2">
+                Saves the strategy chosen for each column (no data) so files with the same columns are pre-filled next time.
+                Everyone with access can use it; only you can change or delete it.
+            </p>
+            @if (Model.RecipeMessage is not null)
+            {
+                <div class="alert alert-success py-2" data-test="recipe-message">@Model.RecipeMessage</div>
+            }
+            @if (Model.RecipeError is not null)
+            {
+                <div class="alert alert-danger py-2">@Model.RecipeError</div>
+            }
+            <form method="post" asp-page-handler="SaveRecipe" asp-route-id="@job.Id" class="d-flex gap-2">
+                <input type="text" name="recipeName" class="form-control form-control-sm" maxlength="@CsvMasker.Web.Recipes.Recipe.MaxNameLength"
+                       placeholder="Recipe name, e.g. Monthly bookings extract" required />
+                <button type="submit" class="btn btn-outline-primary btn-sm text-nowrap">Save new recipe</button>
+            </form>
+            @if (Model.CanUpdateRecipe)
+            {
+                <form method="post" asp-page-handler="UpdateRecipe" asp-route-id="@job.Id" class="mt-2">
+                    <button type="submit" class="btn btn-outline-secondary btn-sm">Update recipe "@job.Recipe!.Name" with these settings</button>
+                </form>
+            }
+        </div>
+
         <h2 class="h5">Verification</h2>
         <div class="table-responsive">
             <table class="table table-sm small" data-test="report">

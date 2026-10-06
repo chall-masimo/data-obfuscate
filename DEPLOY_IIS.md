@@ -195,8 +195,10 @@ To deploy, use the `app_offline.htm` trick so IIS releases file locks:
 3. Delete `app_offline.htm`. The app starts on the next request.
 
 Put the server's values in `C:\inetpub\CsvMasker\appsettings.Production.json`. The repo doesn't
-ship that file, so a publish never overwrites it. **`Authorization:AllowedGroup` is required:**
-without it the app refuses to start, and IIS shows HTTP 500.30 with the reason in Event Viewer.
+ship that file, so a publish never overwrites it. **`Authorization:AllowedGroup` and
+`Storage:RecipeFolder` are required:** without either the app refuses to start, and IIS shows
+HTTP 500.30 with the reason in Event Viewer. The recipe folder must not be inside the temp
+folder (the sweeper empties that).
 
 ```json
 {
@@ -207,6 +209,10 @@ without it the app refuses to start, and IIS shows HTTP 500.30 with the reason i
   }
 }
 ```
+
+Recipes are plain JSON files (one per recipe, no data inside). Back up
+`D:\CsvMaskerData\recipes` with the server's normal backups, or copy files between servers to
+share recipes.
 
 Use the `DOMAIN\Group` form; matching is case-insensitive and includes nested groups.
 Membership is read from the user's logon token, so someone just added to the group may need to

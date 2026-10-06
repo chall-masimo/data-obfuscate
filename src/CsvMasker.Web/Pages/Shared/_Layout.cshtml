@@ -17,6 +17,7 @@
             <div class="container-fluid">
                 <a class="navbar-brand" asp-page="/Index">CSV Masker</a>
                 <span class="navbar-text small text-muted">Masked test data for reports &amp; analytics</span>
+                <a class="nav-link small ms-3" asp-page="/Recipes/Index">Recipes</a>
                 @if (User.Identity?.IsAuthenticated == true)
                 {
                     <span class="navbar-text small ms-auto" data-test="user">@User.Identity.Name</span>

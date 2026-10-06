@@ -289,6 +289,36 @@ Decisions made while building step 1 (implemented in `CsvMasker.Core/Csv`):
   (columns added/removed) pre-fills what matches and highlights the rest as unassigned:
   the job stays blocked until they're assigned.
 
+Decisions made while building step 6 (`src/CsvMasker.Web/Recipes`):
+- **Signature:** SHA-256 hex of the ordered column names joined with U+001F. Each name is
+  normalized first: trimmed, internal whitespace collapsed, lower-cased (invariant).
+  Duplicate and blank names are kept.
+- **Matching:**
+  - An exact signature wins; among several, the most recently updated.
+  - Otherwise, match column names (normalized; the nth duplicate matches the nth). The
+    recipe with the best matched/total score is **auto-applied if ≥ 50%**; ties go to the
+    most recently updated.
+  - Unmatched columns start blank (`— choose —`), highlighted, with the profiler's
+    suggestion as a hint. The review POST rejects blanks.
+  - The review page has a "Pre-fill from" selector (any recipe, or profiler suggestions).
+    Applying one sends the job back to Uploaded, so it needs re-confirming.
+- **Sharing:** team-wide. Every allowed user can apply any recipe; only the owner (matched
+  case-insensitively) can update or delete it. Other members get a 403 "You can't do that"
+  page, not the access-denied one.
+- **Saving:** from a completed job's status page, either "Save new recipe" (name ≤ 100
+  characters) or "Update '<name>'" when the job was pre-filled from your own recipe. Both
+  store the confirmed plan plus `SkipMalformed`.
+- **Storage:**
+  - One file per recipe, `{guid}.json`, in schema version 1, in `Storage:RecipeFolder`.
+  - Writes are atomic (temp file + rename). Corrupt files, or files from a newer schema, are
+    skipped and logged by file name.
+  - DateShift formats are not stored; they come from each file's profile.
+  - `mappingDomain` and `entityGroups` are reserved for step 7.
+- **`Storage:RecipeFolder`** is required outside Development; startup fails without it. In
+  Development, empty means `%LOCALAPPDATA%\CsvMasker\recipes`. It must be outside wwwroot
+  and separate from `Storage:TempFolder`, because the sweeper deletes old files there.
+- Logs record recipe ids and users, never recipe names or contents.
+
 ---
 
 ## Verification report (computed during the run, shown on the download page)
