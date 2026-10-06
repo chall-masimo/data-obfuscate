@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/CsvMasker.Core/CsvMasker.Core.csproj" />
+    <Project Path="src/CsvMasker.Web/CsvMasker.Web.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/CsvMasker.Core.Tests/CsvMasker.Core.Tests.csproj" />
+  </Folder>
+</Solution>

@@ -1,0 +1,11 @@
+# Build output
+bin/
+obj/
+publish/
+
+# IDE / per-user
+*.user
+.vs/
+
+# Test runs
+TestResults/
