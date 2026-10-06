@@ -29,9 +29,11 @@ public static class SafeErrors
 public static class UserKey
 {
     /// <summary>
-    /// The current user's key. Until Windows authentication is enforced (build step 5),
-    /// unauthenticated local use falls back to a single "local" user.
+    /// The signed-in user's name (DOMAIN\user), which owns their jobs. The authorization
+    /// fallback policy means no page runs without one; throwing here is defence in depth.
     /// </summary>
     public static string Of(HttpContext context) =>
-        context.User.Identity is { IsAuthenticated: true, Name: { Length: > 0 } name } ? name : "local";
+        context.User.Identity is { IsAuthenticated: true, Name: { Length: > 0 } name }
+            ? name
+            : throw new InvalidOperationException("No authenticated user.");
 }

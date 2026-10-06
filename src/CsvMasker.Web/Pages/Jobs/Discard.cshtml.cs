@@ -13,7 +13,7 @@ public sealed class DiscardModel(JobRegistry registry, ILogger<DiscardModel> log
         if (TryLoad(id))
         {
             Registry.Remove(Job);
-            logger.LogInformation("Job {JobId} discarded", Job.Id);
+            logger.LogInformation("Job {JobId} discarded by {User}", Job.Id, Job.Owner);
         }
         return RedirectToPage("/Index");
     }

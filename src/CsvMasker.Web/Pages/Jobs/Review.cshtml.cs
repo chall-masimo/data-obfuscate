@@ -82,7 +82,7 @@ public sealed class ReviewModel(JobRegistry registry, IOptions<LimitsOptions> li
             Job.State = JobState.Reviewed;
         }
 
-        logger.LogInformation("Job {JobId} reviewed: {Strategies}", Job.Id,
+        logger.LogInformation("Job {JobId} reviewed by {User}: {Strategies}", Job.Id, Job.Owner,
             string.Join(", ", plan.Columns.Values.GroupBy(r => r.Strategy).Select(g => $"{g.Key} x{g.Count()}")));
         return RedirectToPage("/Jobs/Preview", new { id });
     }

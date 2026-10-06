@@ -1,0 +1,25 @@
+@page
+@model StatusCodeModel
+@{
+    ViewData["Title"] = Model.Code == 403 ? "Access denied" : "Not found";
+}
+
+@if (Model.Code == 403)
+{
+    <h1 class="h3" data-test="access-denied">You don't have access to CSV Masker</h1>
+    <p>
+        You're signed in as <strong>@User.Identity?.Name</strong>, but that account isn't in the access group for this tool.
+        Ask the tool's owner to add you.
+    </p>
+}
+else if (Model.Code == 404)
+{
+    <h1 class="h3">Not found</h1>
+    <p>That page or job doesn't exist. Jobs are removed once discarded, or after a period of inactivity.</p>
+    <p><a asp-page="/Index">Back to the start</a></p>
+}
+else
+{
+    <h1 class="h3">Something went wrong (@Model.Code)</h1>
+    <p><a asp-page="/Index">Back to the start</a></p>
+}

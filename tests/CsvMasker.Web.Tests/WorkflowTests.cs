@@ -81,6 +81,11 @@ public class WorkflowTests
 
         Assert.DoesNotContain(app.Logs.Lines, line => line.Contains("SECRET", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(app.Logs.Lines, line => line.Contains("completed", StringComparison.Ordinal));
+
+        // Audit trail: who uploaded and downloaded, never what.
+        Assert.Contains(app.Logs.Lines, line => line.Contains($"uploaded by {TestApp.DefaultUser}", StringComparison.Ordinal));
+        Assert.Contains(app.Logs.Lines, line => line.Contains($"downloaded by {TestApp.DefaultUser}", StringComparison.Ordinal));
+        Assert.DoesNotContain(app.Logs.Lines, line => line.Contains("data.csv", StringComparison.Ordinal));
     }
 
     [Fact]

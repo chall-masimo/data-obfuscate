@@ -25,6 +25,7 @@ public sealed class StatusModel(JobRegistry registry, JobRunner runner, TempFile
         if (!TryLoad(id))
             return NotFound();
         runner.Cancel(Job);
+        logger.LogInformation("Job {JobId} cancelled by {User}", Job.Id, Job.Owner);
         return RedirectToPage(new { id });
     }
 
@@ -48,7 +49,7 @@ public sealed class StatusModel(JobRegistry registry, JobRunner runner, TempFile
         }
 
         var stream = store.OpenReadAndDeleteOnClose(path);
-        logger.LogInformation("Job {JobId} downloaded ({Bytes} bytes)", Job.Id, stream.Length);
+        logger.LogInformation("Job {JobId} downloaded by {User} ({Bytes} bytes)", Job.Id, Job.Owner, stream.Length);
         return File(stream, "text/csv", Job.MaskedFileName);
     }
 }

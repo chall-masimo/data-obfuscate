@@ -91,21 +91,21 @@ public sealed class JobRunner(
             job.OutputPath = outputPath;
             outcome = JobState.Completed;
             logger.LogInformation(
-                "Job {JobId} completed: {Rows} rows, {Columns} columns in {ElapsedMs} ms; verification failures: {HasFailures}",
-                job.Id, job.Report.RowsWritten, job.Report.Columns.Count, stopwatch.ElapsedMilliseconds, job.Report.HasFailures);
+                "Job {JobId} for {User} completed: {Rows} rows, {Columns} columns in {ElapsedMs} ms; verification failures: {HasFailures}",
+                job.Id, job.Owner, job.Report.RowsWritten, job.Report.Columns.Count, stopwatch.ElapsedMilliseconds, job.Report.HasFailures);
         }
         catch (OperationCanceledException)
         {
             store.Delete(outputPath);
             outcome = JobState.Cancelled;
-            logger.LogInformation("Job {JobId} cancelled after {Rows} rows", job.Id, job.RowsProcessed);
+            logger.LogInformation("Job {JobId} for {User} cancelled after {Rows} rows", job.Id, job.Owner, job.RowsProcessed);
         }
         catch (Exception ex)
         {
             store.Delete(outputPath);
             job.Error = SafeErrors.ForUser(ex);
             outcome = JobState.Failed;
-            logger.LogWarning("Job {JobId} failed: {Error}", job.Id, SafeErrors.ForLog(ex));
+            logger.LogWarning("Job {JobId} for {User} failed: {Error}", job.Id, job.Owner, SafeErrors.ForLog(ex));
         }
 
         lock (job.Sync)

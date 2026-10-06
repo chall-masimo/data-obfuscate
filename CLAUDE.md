@@ -371,12 +371,31 @@ fails if it resolves inside `wwwroot`. A test asserts `web.config` and
   (`SafeErrors.ForLog`). The framework's exception-handler logging is switched off in
   appsettings, because an exception message could echo data. The error page logs a
   sanitized line instead. Users only see value-free messages (`SafeErrors.ForUser`).
-- **Identity until step 5:** `UserKey` uses `User.Identity.Name`, falling back to `"local"`
-  when unauthenticated.
+## Access decisions (step 5)
+- **Authentication:** `Microsoft.AspNetCore.Authentication.Negotiate`. Under IIS it defers to IIS
+  Windows auth; on Kestrel (`dotnet run`) it does Kerberos/NTLM itself.
+- **Authorization:**
+  - The `AllowedGroup` policy (authenticated + `User.IsInRole(group)`, case-insensitive) is the
+    **fallback policy**, so every page and handler requires it without attributes.
+  - Exceptions: `StatusCode` and `Error` pages, plus the bundled CSS/JS, which allow anonymous
+    access so the access-denied page renders styled.
+- **`Authorization:AllowedGroup`** is set per server in `appsettings.Production.json`; no group
+  name is committed. Outside Development the app **refuses to start** when it's empty. In
+  Development, empty means any signed-in Windows user.
+- **403:** a friendly page that names the user but not the group, and logs
+  `Access denied for {User}`. 404s for unknown or expired jobs also get a friendly page.
+- **401s are never re-executed as status pages.** They're steps in the NTLM/Kerberos handshake,
+  and re-running authentication mid-handshake throws. A tiny middleware disables status pages
+  for 401.
+- **Audit:** job events (upload, review, queue, cancel, completed/failed, download, discard)
+  log the Windows user name, still with no file names or cell values. `UserKey` no longer has a
+  fallback identity.
+- **Tests** replace Negotiate with a header-driven test scheme, since Negotiate needs Kestrel or
+  IIS. Real Windows sign-in was checked on Kestrel with `curl --negotiate`.
 
 ## Open items (confirm with Chris)
 
-- AD group name for authorization.
+- ~~AD group name for authorization~~: set per server in `appsettings.Production.json` (step 5).
 - ~~Maximum upload size~~: 200 MB (209,715,200 bytes), decided in step 4.
 - (Fallback shipped in step 3; a list plugs in via `IZipReference`.)
   Source for the bundled US ZIP reference list (public dataset; must be licensed for

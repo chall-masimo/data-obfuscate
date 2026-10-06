@@ -44,7 +44,7 @@ public sealed class IndexModel(
         }
         catch (UploadException ex)
         {
-            logger.LogInformation("Upload rejected: {Reason}", ex.Message);
+            logger.LogInformation("Upload by {User} rejected: {Reason}", owner, ex.Message);
             return Error(ex.StatusCode, ex.Message);
         }
 
@@ -58,7 +58,7 @@ public sealed class IndexModel(
         catch (Exception ex)
         {
             store.Delete(upload.Path);
-            logger.LogInformation("Upload could not be read: {Error}", SafeErrors.ForLog(ex));
+            logger.LogInformation("Upload by {User} could not be read: {Error}", owner, SafeErrors.ForLog(ex));
             return Error(StatusCodes.Status422UnprocessableEntity, SafeErrors.ForUser(ex));
         }
 
@@ -70,8 +70,8 @@ public sealed class IndexModel(
         }
 
         logger.LogInformation(
-            "Job {JobId} uploaded: {Bytes} bytes, {Columns} columns, {Rows} rows profiled in {ElapsedMs} ms",
-            job.Id, upload.Bytes, profile.Columns.Count, profile.RowsProfiled, stopwatch.ElapsedMilliseconds);
+            "Job {JobId} uploaded by {User}: {Bytes} bytes, {Columns} columns, {Rows} rows profiled in {ElapsedMs} ms",
+            job.Id, owner, upload.Bytes, profile.Columns.Count, profile.RowsProfiled, stopwatch.ElapsedMilliseconds);
         return new JsonResult(new { redirect = Url.Page("/Jobs/Review", new { id = job.Id }) });
     }
 

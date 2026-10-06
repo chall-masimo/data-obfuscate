@@ -12,6 +12,7 @@ namespace CsvMasker.Web.Pages;
 /// </summary>
 [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
 [IgnoreAntiforgeryToken]
+[Microsoft.AspNetCore.Authorization.AllowAnonymous]
 public class ErrorModel(ILogger<ErrorModel> logger) : PageModel
 {
     public string? RequestId { get; set; }

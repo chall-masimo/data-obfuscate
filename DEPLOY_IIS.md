@@ -194,9 +194,23 @@ To deploy, use the `app_offline.htm` trick so IIS releases file locks:
 2. Copy the contents of `.\publish` into `C:\inetpub\CsvMasker`, overwriting.
 3. Delete `app_offline.htm`. The app starts on the next request.
 
-Make sure `appsettings.json` on the server has the production values (AD group, folder paths,
-limits). Consider keeping server-specific settings in `appsettings.Production.json` so a
-publish doesn't overwrite them.
+Put the server's values in `C:\inetpub\CsvMasker\appsettings.Production.json`. The repo doesn't
+ship that file, so a publish never overwrites it. **`Authorization:AllowedGroup` is required:**
+without it the app refuses to start, and IIS shows HTTP 500.30 with the reason in Event Viewer.
+
+```json
+{
+  "Authorization": { "AllowedGroup": "DOMAIN\\SalesOps-CsvMasker" },
+  "Storage": {
+    "TempFolder": "D:\\CsvMaskerData\\temp",
+    "RecipeFolder": "D:\\CsvMaskerData\\recipes"
+  }
+}
+```
+
+Use the `DOMAIN\Group` form; matching is case-insensitive and includes nested groups.
+Membership is read from the user's logon token, so someone just added to the group may need to
+sign out and back in (or wait for a new Kerberos ticket) before they get in.
 
 ---
 

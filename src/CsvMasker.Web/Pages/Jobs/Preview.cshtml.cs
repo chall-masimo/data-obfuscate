@@ -40,7 +40,7 @@ public sealed class PreviewModel(JobRegistry registry, JobRunner runner, TempFil
         if (!TryLoad(id))
             return NotFound();
         if (runner.Enqueue(Job))
-            logger.LogInformation("Job {JobId} queued", Job.Id);
+            logger.LogInformation("Job {JobId} queued by {User}", Job.Id, Job.Owner);
         return RedirectToPage("/Jobs/Status", new { id });
     }
 }
