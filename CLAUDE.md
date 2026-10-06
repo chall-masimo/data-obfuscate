@@ -198,6 +198,46 @@ groups). Use the seed bytes to drive a seeded `Random`/Bogus `Faker` instance.
 Allow marking a column as derived from others (`Amount = Price * Qty`) and recompute it from
 masked inputs instead of masking it independently. Not in v1, but don't architect it out.
 
+### Decisions made while building step 3 (implemented in `CsvMasker.Core/Masking`)
+- **Bogus** is referenced by `CsvMasker.Core` only. Each value reseeds one shared `Faker` from
+  its HMAC seed, so output is deterministic within a job and unrelated across jobs.
+- **Seeds:** `HMACSHA256(jobKey, domain ␟ value)` (␟ = U+001F). Variations append further
+  fields after another ␟:
+  - collision retries add `␟n`;
+  - PerRow perturbation adds `␟row:{recordNumber}`;
+  - Global modes seed from `domain ␟ U+001E "global"`.
+- **Mapping strategies** (cardinality kept exactly, output never equals source, cached per
+  domain) are `HashId`, `Fake` and `ZipRemap`. The other strategies are deterministic but not
+  tracked, so they cost no memory:
+  - `Perturb`, `DateShift` and `Lorem`;
+  - `Redact`, which outputs a constant;
+  - a Global date shift, which is a bijection anyway.
+- **`Limits:MaxMappingEntries`** defaults to 2,000,000 entries across all domains. Exceeding
+  it fails the job cleanly (`MaskingException`, naming the column only).
+- **Fake pool exhausted:** after 50 colliding retries, a numeric suffix is appended (`Maria 2`;
+  for emails the number goes before `@`). The report counts suffixed values.
+- **Fake emails** use only the RFC 2606 reserved domains `example.com/.net/.org`.
+- **HashId zero padding:** a multi-digit run that starts with `0` still starts with `0`, and
+  one that doesn't never gains a leading zero; all other positions are random. After 100
+  random collisions it steps through the remaining output space deterministically, so dense
+  sequential IDs always find a free value if one exists.
+- **Unmaskable values** (`N/A` in Perturb, `TBD` in DateShift, a non-ZIP in ZipRemap, `-` in
+  HashId) are replaced with `[REDACTED]` and counted as warnings, never passed through.
+- **Perturb:** zero stays the exact source string, and a non-zero value never rounds to zero.
+  Counts never drop below 1 when the source is ≥ 1, and zero padding (`007`) is kept.
+- **DateShift:** only the year/month/day characters are rewritten (same widths, same
+  month-name case). Time, fractions and offsets stay byte-for-byte. The profiled formats are
+  tried first, so a day-first column stays day-first.
+- **ZipRemap:** the fallback keeps the first 3 digits and derives the rest, with a "may not
+  geocode" warning. A real list plugs in through `IZipReference`.
+- **Malformed rows:** skip mode leaves the row out of the output and lists its record number.
+  Fail mode (the default) stops at the first one.
+- **Preview and run share the session key**, so the preview matches the downloaded file. The
+  key is zeroed when the session is disposed.
+- **Verification:** mapping columns count distinct values exactly with 64-bit hashes,
+  independently of the mapping dictionaries. Other columns use bounded estimates.
+- `PerEntity` modes are rejected by plan validation until entity groups (step 7).
+
 ---
 
 ## CSV handling
@@ -306,6 +346,7 @@ without the request-filtering limit.
 
 - AD group name for authorization.
 - Maximum upload size.
-- Source for the bundled US ZIP reference list (public dataset; must be licensed for
+- (Fallback shipped in step 3; a list plugs in via `IZipReference`.)
+  Source for the bundled US ZIP reference list (public dataset; must be licensed for
   internal use) and whether non-US postal codes need handling.
 - IIS site/application path (assumed `/csvmasker` under an existing HTTPS site).
