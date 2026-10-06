@@ -22,6 +22,10 @@ public sealed class MaskingPlan
 
     public IReadOnlyDictionary<string, ColumnRule> Columns { get; }
 
+    /// <summary>Checks the plan against a file's header (fail closed).</summary>
+    /// <exception cref="MaskingPlanException">Any column is unassigned or misconfigured.</exception>
+    public void Validate(Csv.CsvHeader header) => PlanValidator.Validate(this, header);
+
     /// <summary>
     /// A plan pre-filled from the profiler's suggestions. The user still confirms every column
     /// on the review screen; this is the pre-fill, not an approval.

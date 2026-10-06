@@ -1,10 +1,55 @@
-﻿@page
+@page
 @model IndexModel
 @{
-    ViewData["Title"] = "Home page";
+    ViewData["Title"] = "Upload";
+    var job = Model.CurrentJob;
 }
 
-<div class="text-center">
-    <h1 class="display-4">Welcome</h1>
-    <p>Learn about <a href="https://learn.microsoft.com/aspnet/core">building Web apps with ASP.NET Core</a>.</p>
-</div>
+<h1 class="h3">Upload a CSV</h1>
+
+@if (job is { IsOpen: true })
+{
+    <div class="alert alert-warning" data-test="open-job">
+        You have a job in progress for <strong>@job.OriginalFileName</strong> (@Display.State(job.State)).
+        Finish or discard it before uploading another file.
+        <div class="mt-2 d-flex gap-2">
+            <a class="btn btn-primary btn-sm" asp-page="@JobSteps.PageFor(job)" asp-route-id="@job.Id">Continue</a>
+            <form method="post" asp-page="/Jobs/Discard" asp-route-id="@job.Id">
+                <button type="submit" class="btn btn-outline-danger btn-sm">Discard job</button>
+            </form>
+        </div>
+    </div>
+}
+else
+{
+    @if (job is not null)
+    {
+        <div class="alert alert-secondary">
+            Your last job (<strong>@job.OriginalFileName</strong>) is @Display.State(job.State).ToLowerInvariant().
+            <a asp-page="/Jobs/Status" asp-route-id="@job.Id">View its report</a>. Uploading a new file replaces it.
+        </div>
+    }
+
+    <form id="upload-form" method="post" asp-page-handler="Upload" enctype="multipart/form-data"
+          data-max-bytes="@Model.MaxUploadBytes" class="card card-body" style="max-width: 40rem">
+        <div class="mb-3">
+            <label for="file" class="form-label">CSV file (header row required, up to @Display.Bytes(Model.MaxUploadBytes))</label>
+            <input type="file" id="file" name="file" class="form-control" accept=".csv,.txt,.tsv" required />
+        </div>
+        <progress id="upload-progress" class="w-100 mb-2" max="100" value="0" hidden></progress>
+        <div id="upload-error" class="alert alert-danger" role="alert" hidden></div>
+        <noscript><div class="alert alert-warning">Uploading needs JavaScript enabled.</div></noscript>
+        <div>
+            <button type="submit" class="btn btn-primary" id="upload-button">Upload and profile</button>
+        </div>
+    </form>
+
+    <p class="text-muted small mt-3">
+        The file is profiled to suggest a masking strategy per column; you review every column before anything runs.
+        The upload is deleted when the job finishes, and the masked file as soon as you download it.
+    </p>
+}
+
+@section Scripts {
+    <script src="~/js/upload.js" asp-append-version="true"></script>
+}

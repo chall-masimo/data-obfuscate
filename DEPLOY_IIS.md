@@ -148,7 +148,8 @@ HTTPS (or remove the HTTP binding if nothing else needs it).
 ## Step 8 — Upload size limit
 
 IIS rejects requests over 30,000,000 bytes (~28.6 MB) by default, before the app sees them.
-The project ships its own `web.config` with the limit set. Example for 200 MB:
+The project ships its own `web.config` (`src/CsvMasker.Web/web.config`) with the limit set to
+200 MB, the agreed maximum. Publish keeps it. Its request-filtering section:
 
 ```xml
 <configuration>
@@ -162,10 +163,16 @@ The project ships its own `web.config` with the limit set. Example for 200 MB:
 </configuration>
 ```
 
-This value must match `Limits:MaxUploadBytes` in `appsettings.json`. The app applies the
-same value to its own two limits (`IISServerOptions.MaxRequestBodySize` and
-`FormOptions.MultipartBodyLengthLimit`). If uploads fail with a 404.13 error, IIS is the
-one rejecting them. If they fail with a 413 error or a form-binding error, it's the app.
+This value must match `Limits:MaxUploadBytes` in `appsettings.json` (a unit test checks the
+two files agree). To change the limit, change both, and change the server's
+`appsettings.Production.json` if it overrides the value. The app applies the same value to
+its own limits (`IISServerOptions.MaxRequestBodySize`, Kestrel, and
+`FormOptions.MultipartBodyLengthLimit`) and checks the size again while streaming. If uploads
+fail with a 404.13 error, IIS is the one rejecting them. If the page says "larger than the …
+limit", it's the app.
+
+Masking runs on background workers; `Limits:MaxConcurrentJobs` (default 2) caps how many run
+at once across all users, to protect the server's other workloads.
 
 ---
 

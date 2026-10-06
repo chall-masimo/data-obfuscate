@@ -29,3 +29,11 @@ body {
 .form-floating > .form-control-plaintext:focus::placeholder, .form-floating > .form-control:focus::placeholder {
   text-align: start;
 }
+.review-table td { vertical-align: top; }
+.review-table .samples code { white-space: pre-wrap; word-break: break-all; }
+.preview-table tr.masked td { background: #f3f8ff; }
+.preview-table tr.original td { color: #6c757d; }
+.preview-table td { white-space: nowrap; }
+
+.box-shadow { box-shadow: 0 .25rem .75rem rgba(0, 0, 0, .05); }
+.footer { position: absolute; bottom: 0; width: 100%; line-height: 60px; }

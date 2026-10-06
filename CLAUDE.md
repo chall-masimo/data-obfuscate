@@ -342,10 +342,42 @@ isolation and, if ever needed, wrapped in a CLI.
 possible, and the project includes its own `web.config` so publish doesn't regenerate it
 without the request-filtering limit.
 
+Added in step 4: `Limits:MaxConcurrentJobs` (default 2), a global cap on masking runs at once;
+extra runs queue. `Storage:TempFolder` empty means `%TEMP%\CsvMasker` (dev only); startup
+fails if it resolves inside `wwwroot`. A test asserts `web.config` and
+`Limits:MaxUploadBytes` agree.
+
+## Web workflow decisions (step 4, `src/CsvMasker.Web`)
+- **Uploads stream** straight into `Storage:TempFolder` via `MultipartReader`. There's no
+  `IFormFile`, which would buffer into ASP.NET's own temp dir. The upload page posts with a
+  small vanilla-JS XHR that puts the antiforgery token in the `RequestVerificationToken`
+  header, so the body is never read as a form, and shows upload progress. JavaScript is
+  required to upload.
+- **Jobs live in memory** (`JobRegistry`). There's one open job per user, from upload until
+  download, failure, cancel or discard; another upload is rejected with "continue or
+  discard". Another user's job id returns 404.
+- **Review is fail-closed:** strategies are pre-filled from the profiler, but nothing runs until
+  "I have reviewed every column" is ticked and the plan validates. The per-job "Skip malformed
+  rows" option is off by default.
+- **Run** happens on a background worker (`JobRunner`). The status page auto-refreshes with a
+  meta refresh (no JS), with Cancel. The upload is deleted as soon as the run ends, whatever
+  the outcome.
+- **Download** is a POST, so link prefetch can't consume it. It streams with
+  `FileOptions.DeleteOnClose`, so the output is gone once sent; an interrupted download means
+  re-running.
+- **Sweeper** runs every 5 minutes. It removes temp files and idle jobs older than
+  `SweepAgeMinutes`, skipping files that belong to a running job.
+- **Logging:** only job ids, sizes, counts, timings and error kinds are logged
+  (`SafeErrors.ForLog`). The framework's exception-handler logging is switched off in
+  appsettings, because an exception message could echo data. The error page logs a
+  sanitized line instead. Users only see value-free messages (`SafeErrors.ForUser`).
+- **Identity until step 5:** `UserKey` uses `User.Identity.Name`, falling back to `"local"`
+  when unauthenticated.
+
 ## Open items (confirm with Chris)
 
 - AD group name for authorization.
-- Maximum upload size.
+- ~~Maximum upload size~~: 200 MB (209,715,200 bytes), decided in step 4.
 - (Fallback shipped in step 3; a list plugs in via `IZipReference`.)
   Source for the bundled US ZIP reference list (public dataset; must be licensed for
   internal use) and whether non-US postal codes need handling.

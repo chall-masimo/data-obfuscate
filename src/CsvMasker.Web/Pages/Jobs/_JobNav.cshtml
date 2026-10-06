@@ -1,0 +1,21 @@
+@model Job
+@{
+    var steps = new[] { ("Review", JobState.Uploaded), ("Preview", JobState.Reviewed), ("Run & download", JobState.Queued) };
+    int current = Model.State switch { JobState.Uploaded => 0, JobState.Reviewed => 1, _ => 2 };
+}
+<div class="d-flex flex-wrap align-items-center gap-3 mb-3">
+    <div>
+        <div class="small text-muted">File</div>
+        <strong>@Model.OriginalFileName</strong>
+    </div>
+    <ol class="breadcrumb mb-0 ms-3">
+        <li class="breadcrumb-item text-muted">Upload</li>
+        @for (int i = 0; i < steps.Length; i++)
+        {
+            <li class="breadcrumb-item @(i == current ? "fw-bold" : "text-muted")">@steps[i].Item1</li>
+        }
+    </ol>
+    <form method="post" asp-page="/Jobs/Discard" asp-route-id="@Model.Id" class="ms-auto">
+        <button type="submit" class="btn btn-outline-danger btn-sm">Discard job</button>
+    </form>
+</div>

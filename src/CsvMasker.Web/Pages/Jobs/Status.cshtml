@@ -1,0 +1,119 @@
+@page "/Jobs/{id:guid}/Status"
+@model CsvMasker.Web.Pages.Jobs.StatusModel
+@{
+    ViewData["Title"] = "Run";
+    var job = Model.Job;
+    var report = job.Report;
+    if (Model.InProgress)
+    {
+        ViewData["RefreshSeconds"] = CsvMasker.Web.Pages.Jobs.StatusModel.RefreshSeconds;
+    }
+}
+
+<partial name="_JobNav" model="job" />
+
+<div data-job-state="@job.State">
+@switch (job.State)
+{
+    case JobState.Queued:
+    case JobState.Running:
+        <h1 class="h3">@(job.State == JobState.Queued ? "Queued…" : "Masking…")</h1>
+        <p>
+            @if (job.State == JobState.Queued)
+            {
+                <span>Waiting for a free worker; other jobs are running.</span>
+            }
+            else
+            {
+                <span>@job.RowsProcessed.ToString("N0") rows processed so far.</span>
+            }
+            This page refreshes every @CsvMasker.Web.Pages.Jobs.StatusModel.RefreshSeconds seconds.
+        </p>
+        <form method="post" asp-page-handler="Cancel" asp-route-id="@job.Id">
+            <button type="submit" class="btn btn-outline-danger">Cancel</button>
+        </form>
+        break;
+
+    case JobState.Failed:
+        <h1 class="h3 text-danger">The job failed</h1>
+        <div class="alert alert-danger" data-test="job-error">@job.Error</div>
+        <p>The upload has been deleted. Discard this job to start again with a different strategy or file.</p>
+        break;
+
+    case JobState.Cancelled:
+        <h1 class="h3">Cancelled</h1>
+        <p>The job was cancelled and its files were deleted.</p>
+        break;
+
+    case JobState.Completed when report is not null:
+        <h1 class="h3">Done</h1>
+        @if (report.HasFailures)
+        {
+            <div class="alert alert-danger" data-test="verification-failed">
+                <strong>Verification found problems.</strong> The masked file may not preserve the shape of the original;
+                see the highlighted columns below. You can still download it.
+            </div>
+        }
+        else
+        {
+            <div class="alert alert-success">All verification checks passed.</div>
+        }
+
+        <p>
+            @report.RowsWritten.ToString("N0") of @report.RowsRead.ToString("N0") rows written
+            @if (report.BlankLines > 0) { <span>· @report.BlankLines blank line(s) kept</span> }
+            @if (report.MalformedRowCount > 0)
+            {
+                <span class="text-danger">· @report.MalformedRowCount.ToString("N0") malformed row(s) skipped (records @string.Join(", ", report.MalformedRecordNumbers)@(report.MalformedRowCount > report.MalformedRecordNumbers.Count ? ", …" : ""))</span>
+            }
+        </p>
+
+        @if (job.Downloaded)
+        {
+            <div class="alert alert-secondary">Downloaded. The masked file has been deleted from the server.</div>
+        }
+        else
+        {
+            <form method="post" asp-page-handler="Download" asp-route-id="@job.Id" class="mb-3">
+                <button type="submit" class="btn btn-primary btn-lg">Download @job.MaskedFileName</button>
+                <div class="small text-muted mt-1">The file is deleted from the server as soon as it has been downloaded.</div>
+            </form>
+        }
+
+        <h2 class="h5">Verification</h2>
+        <div class="table-responsive">
+            <table class="table table-sm small" data-test="report">
+                <thead>
+                    <tr>
+                        <th>Column</th><th>Strategy</th><th>Rows</th><th>Nulls (src → out)</th>
+                        <th>Distinct (src → out)</th><th>Unchanged</th><th>Sum change</th><th>Notes</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var c in report.Columns)
+                    {
+                        <tr class="@(c.Failures.Count > 0 ? "table-danger" : "")">
+                            <td>@c.Key</td>
+                            <td>@c.Strategy</td>
+                            <td>@c.RowCount.ToString("N0")</td>
+                            <td>@c.SourceNullCount.ToString("N0") → @c.OutputNullCount.ToString("N0")</td>
+                            <td>@(c.DistinctIsExact ? "" : "≈")@c.SourceDistinct.ToString("N0") → @(c.DistinctIsExact ? "" : "≈")@c.OutputDistinct.ToString("N0")</td>
+                            <td>@(c.IsMapping ? c.UnchangedCount.ToString("N0") : "")</td>
+                            <td>@(c.SumDifferencePercent is { } pct ? $"{pct:+0.##;-0.##;0}%" : "")</td>
+                            <td>
+                                @foreach (var f in c.Failures) { <div class="text-danger">✖ @f</div> }
+                                @foreach (var w in c.Warnings) { <div class="text-warning-emphasis">⚠ @w</div> }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        break;
+}
+</div>
+
+@if (!Model.InProgress)
+{
+    <p class="mt-3"><a asp-page="/Index">Start a new job</a> (this one is replaced when you upload another file).</p>
+}
