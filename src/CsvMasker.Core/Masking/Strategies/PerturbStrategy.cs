@@ -6,6 +6,11 @@ namespace CsvMasker.Core.Masking.Strategies;
 /// Multiplies by a factor in [1 - pct, 1 + pct]. Keeps zero, sign, scale, integer-ness and
 /// formatting. Count columns never fall below 1 when the source is at least 1.
 /// </summary>
+/// <remarks>
+/// Modes: PerRow (a factor per row), Global (one factor for the column) and PerEntity (one
+/// factor per anchor value, so one customer's amounts move together). A PerEntity row with a
+/// blank anchor uses the Global factor.
+/// </remarks>
 internal sealed class PerturbStrategy : IMaskingStrategy
 {
     private readonly SeedSource _seeds;
@@ -35,6 +40,11 @@ internal sealed class PerturbStrategy : IMaskingStrategy
         if (_options.Mode == PerturbMode.PerRow)
         {
             var random = _seeds.Random(_domain, input.Value, "row:" + input.Row.RecordNumber.ToString(CultureInfo.InvariantCulture));
+            factor = Factor(ref random);
+        }
+        else if (_options.Mode == PerturbMode.PerEntity && input.LinkedToEntity)
+        {
+            var random = _seeds.Random(input.SeedDomain, input.SeedValue, "perturb");
             factor = Factor(ref random);
         }
 

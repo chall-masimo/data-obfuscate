@@ -18,12 +18,13 @@ internal sealed class MappingStore(long maxEntries)
         return domain;
     }
 
-    public void Add(Domain domain, string source, string output, string columnKey)
+    /// <param name="usedKey">What counts as "taken": the output itself, or (anchor, output) for linked columns.</param>
+    public void Add(Domain domain, string source, string output, string usedKey, string columnKey)
     {
         if (EntryCount >= maxEntries)
             throw MaskingException.MappingLimitExceeded(columnKey, maxEntries);
         domain.Map.Add(source, output);
-        domain.Used.Add(output);
+        domain.Used.Add(usedKey);
         EntryCount++;
     }
 

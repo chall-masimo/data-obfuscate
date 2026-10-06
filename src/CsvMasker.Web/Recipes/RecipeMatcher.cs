@@ -62,12 +62,69 @@ public static class RecipeMatcher
     /// A plan with rules for the columns the recipe covers. Columns it doesn't cover are left
     /// out, so they show as unassigned and block the run until chosen.
     /// </summary>
-    public static MaskingPlan Apply(FileProfile profile, Recipe recipe)
+    public static MaskingPlan Apply(FileProfile profile, Recipe recipe) => Apply(profile, recipe, out _);
+
+    /// <summary>
+    /// As <see cref="Apply(FileProfile, Recipe)"/>. Entity groups and shared mappings are stored by
+    /// column name and resolved to this file's columns. A link to a column the file doesn't have
+    /// is dropped and counted in <paramref name="droppedLinks"/>.
+    /// </summary>
+    public static MaskingPlan Apply(FileProfile profile, Recipe recipe, out int droppedLinks)
     {
-        var names = profile.Header.OriginalNames;
+        droppedLinks = 0;
+        var aligned = Align(profile.Header.OriginalNames, recipe);
+        var keyByName = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var (index, column) in aligned)
+            keyByName.TryAdd(HeaderSignature.Normalize(column.Name), profile.Columns[index].Key);
+        string? KeyOf(string name) => keyByName.GetValueOrDefault(HeaderSignature.Normalize(name));
+
         var rules = new Dictionary<string, ColumnRule>(StringComparer.Ordinal);
-        foreach (var (index, column) in Align(names, recipe))
-            rules[profile.Columns[index].Key] = RuleMapper.ToRule(column, profile.Columns[index]);
-        return new MaskingPlan(rules);
+        foreach (var (index, column) in aligned)
+        {
+            var rule = RuleMapper.ToRule(column, profile.Columns[index]);
+            if (column.MappingDomain is { } partner)
+            {
+                string? partnerKey = KeyOf(partner);
+                if (partnerKey is null)
+                    droppedLinks++;
+                rule = rule with { MappingDomain = partnerKey };
+            }
+            rules[profile.Columns[index].Key] = rule;
+        }
+
+        var groups = new List<EntityGroup>();
+        foreach (var group in recipe.EntityGroups)
+        {
+            var members = group.Members.Select(KeyOf).OfType<string>().ToArray();
+            string? anchor = KeyOf(group.Anchor);
+            if (anchor is null || members.Length == 0)
+            {
+                droppedLinks += group.Members.Count;
+                continue;
+            }
+            droppedLinks += group.Members.Count - members.Length;
+            groups.Add(new EntityGroup(anchor, members));
+        }
+
+        return new MaskingPlan(rules, groups);
+    }
+
+    /// <summary>A plan's groups and shared mappings as column names, for saving in a recipe.</summary>
+    public static (List<RecipeColumn> Columns, List<RecipeEntityGroup> Groups) ToRecipe(FileProfile profile, MaskingPlan plan)
+    {
+        var header = profile.Header;
+        string NameOf(string key) => header.IndexOf(key) is var i and >= 0 ? header.OriginalNames[i] : key;
+
+        var columns = header.Keys.Select((key, i) =>
+        {
+            var column = RuleMapper.ToRecipeColumn(header.OriginalNames[i], plan.Columns[key]);
+            column.MappingDomain = plan.Columns[key].MappingDomain is { } domain ? NameOf(domain) : null;
+            return column;
+        }).ToList();
+
+        var groups = plan.EntityGroups
+            .Select(g => new RecipeEntityGroup { Anchor = NameOf(g.Anchor), Members = g.Members.Select(NameOf).ToList() })
+            .ToList();
+        return (columns, groups);
     }
 }

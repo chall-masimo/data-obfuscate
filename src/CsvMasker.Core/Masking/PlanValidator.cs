@@ -21,12 +21,19 @@ internal static class PlanValidator
             if (!headerKeys.Contains(key))
                 problems.Add($"The plan has a rule for '{key}', which is not a column in this file.");
 
+        GroupProblems(plan, headerKeys, problems);
+
         foreach (var (key, rule) in plan.Columns)
         {
+            bool linked = plan.AnchorOf(key) is not null;
             if (rule.MappingDomain is { } domain && string.IsNullOrWhiteSpace(domain))
                 problems.Add($"Column '{key}': the mapping domain cannot be blank.");
+            if (linked && rule.MappingDomain is not null)
+                problems.Add($"Column '{key}' is linked to an entity group, so it can't also share a mapping domain.");
             if (OptionsProblem(rule) is { } problem)
                 problems.Add($"Column '{key}': {problem}");
+            if (!linked && rule.Options is PerturbOptions { Mode: PerturbMode.PerEntity } or DateShiftOptions { Mode: DateShiftMode.PerEntity })
+                problems.Add($"Column '{key}': Per entity needs the column to be linked to an entity group (an anchor column).");
         }
 
         // Mapping strategies share one source→output map per domain, so every column in a
@@ -45,6 +52,36 @@ internal static class PlanValidator
             throw new MaskingPlanException(problems);
     }
 
+    /// <summary>
+    /// Each group has a real anchor and at least one member, no column belongs to two groups,
+    /// and an anchor isn't itself linked (no chains).
+    /// </summary>
+    private static void GroupProblems(MaskingPlan plan, HashSet<string> headerKeys, List<string> problems)
+    {
+        var anchors = plan.EntityGroups.Select(g => g.Anchor).ToHashSet(StringComparer.Ordinal);
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var group in plan.EntityGroups)
+        {
+            if (!headerKeys.Contains(group.Anchor))
+                problems.Add($"Entity group anchor '{group.Anchor}' is not a column in this file.");
+            if (group.Members.Count == 0)
+                problems.Add($"Entity group anchored on '{group.Anchor}' has no linked columns.");
+            foreach (var member in group.Members)
+            {
+                if (!headerKeys.Contains(member))
+                    problems.Add($"Column '{member}' is linked to '{group.Anchor}' but is not a column in this file.");
+                else if (member == group.Anchor)
+                    problems.Add($"Column '{member}' can't be linked to itself.");
+                else if (anchors.Contains(member))
+                    problems.Add($"Column '{member}' is an anchor, so it can't also be linked to '{group.Anchor}'.");
+                else if (!seen.Add(member))
+                    problems.Add($"Column '{member}' is linked to more than one anchor.");
+            }
+        }
+        if (plan.EntityGroups.GroupBy(g => g.Anchor, StringComparer.Ordinal).Any(g => g.Count() > 1))
+            problems.Add("Each anchor column can have only one entity group.");
+    }
+
     public static bool IsMapping(MaskingStrategy strategy) =>
         strategy is MaskingStrategy.HashId or MaskingStrategy.Fake or MaskingStrategy.ZipRemap;
 
@@ -56,11 +93,9 @@ internal static class PlanValidator
         (MaskingStrategy.Fake, FakeOptions) => null,
         (MaskingStrategy.Fake, null) => "Fake needs a kind (FakeOptions).",
         (MaskingStrategy.Perturb, PerturbOptions o) when o.Percent is not (> 0 and < 1) => "Perturb percent must be between 0 and 1.",
-        (MaskingStrategy.Perturb, PerturbOptions { Mode: PerturbMode.PerEntity }) => "PerEntity perturbation needs entity groups, which are not available yet.",
         (MaskingStrategy.Perturb, null or PerturbOptions) => null,
         (MaskingStrategy.DateShift, DateShiftOptions o) when o.MaxDays < 1 => "DateShift max days must be at least 1.",
         (MaskingStrategy.DateShift, DateShiftOptions { KeepWeekday: true } o) when o.MaxDays < 7 => "DateShift with keep-weekday needs max days of at least 7.",
-        (MaskingStrategy.DateShift, DateShiftOptions { Mode: DateShiftMode.PerEntity }) => "PerEntity date shifting needs entity groups, which are not available yet.",
         (MaskingStrategy.DateShift, null or DateShiftOptions) => null,
         (MaskingStrategy.Redact, null or RedactOptions) => null,
         (MaskingStrategy.Lorem, null or LoremOptions) => null,

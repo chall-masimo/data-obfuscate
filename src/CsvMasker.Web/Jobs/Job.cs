@@ -16,12 +16,12 @@ public enum JobState
     Cancelled,
 }
 
-public sealed record AppliedRecipe(Guid Id, string Name, string Owner, Recipes.RecipeMatchKind Kind, int Matched, int Total)
+public sealed record AppliedRecipe(Guid Id, string Name, string Owner, Recipes.RecipeMatchKind Kind, int Matched, int Total, int DroppedLinks = 0)
 {
     public int Unassigned => Total - Matched;
 
-    public static AppliedRecipe From(Recipes.RecipeMatch match) =>
-        new(match.Recipe.Id, match.Recipe.Name, match.Recipe.Owner, match.Kind, match.Matched, match.Total);
+    public static AppliedRecipe From(Recipes.RecipeMatch match, int droppedLinks = 0) =>
+        new(match.Recipe.Id, match.Recipe.Name, match.Recipe.Owner, match.Kind, match.Matched, match.Total, droppedLinks);
 }
 
 public static class JobSteps

@@ -38,7 +38,7 @@ public sealed class RecipeStore(string folder, TimeProvider time, ILogger<Recipe
             return File.Exists(PathFor(id)) ? Read(PathFor(id)) : null;
     }
 
-    public Recipe Create(string name, string owner, string headerSignature, List<RecipeColumn> columns, bool skipMalformed)
+    public Recipe Create(string name, string owner, string headerSignature, List<RecipeColumn> columns, List<RecipeEntityGroup> entityGroups, bool skipMalformed)
     {
         var now = time.GetUtcNow();
         var recipe = new Recipe
@@ -50,6 +50,7 @@ public sealed class RecipeStore(string folder, TimeProvider time, ILogger<Recipe
             Updated = now,
             HeaderSignature = headerSignature,
             Columns = columns,
+            EntityGroups = entityGroups,
             SkipMalformed = skipMalformed,
         };
         lock (_lock)
@@ -59,7 +60,7 @@ public sealed class RecipeStore(string folder, TimeProvider time, ILogger<Recipe
     }
 
     /// <summary>Replaces a recipe's layout and strategies. Only its owner may do this.</summary>
-    public RecipeChange Update(Guid id, string user, string headerSignature, List<RecipeColumn> columns, bool skipMalformed)
+    public RecipeChange Update(Guid id, string user, string headerSignature, List<RecipeColumn> columns, List<RecipeEntityGroup> entityGroups, bool skipMalformed)
     {
         lock (_lock)
         {
@@ -71,6 +72,7 @@ public sealed class RecipeStore(string folder, TimeProvider time, ILogger<Recipe
 
             recipe.HeaderSignature = headerSignature;
             recipe.Columns = columns;
+            recipe.EntityGroups = entityGroups;
             recipe.SkipMalformed = skipMalformed;
             recipe.Updated = time.GetUtcNow();
             Write(recipe);

@@ -34,9 +34,15 @@ internal static class MaskingPipeline
             string columnKey = header.Keys[i];
             var rule = plan.Columns[columnKey];
             string domain = rule.MappingDomain ?? columnKey;
+            var group = plan.EntityGroups.FirstOrDefault(g => g.Members.Contains(columnKey, StringComparer.Ordinal));
+            int? anchorIndex = group is null ? null : header.IndexOf(group.Anchor);
             var strategy = CreateStrategy(rule, domain, seeds, options);
-            verifiers[i] = new ColumnVerifier(columnKey, rule.Strategy, strategy.IsMapping) { Warning = strategy.Warning };
-            maskers[i] = new ColumnMasker(columnKey, strategy, domain, store, verifiers[i]);
+            verifiers[i] = new ColumnVerifier(columnKey, rule.Strategy, strategy.IsMapping)
+            {
+                Warning = strategy.Warning,
+                PerEntity = group is not null,
+            };
+            maskers[i] = new ColumnMasker(columnKey, strategy, domain, store, verifiers[i], anchorIndex, group?.SeedDomain);
         }
 
         long rowsRead = 0, rowsWritten = 0, blankLines = 0, malformed = 0;
@@ -81,7 +87,7 @@ internal static class MaskingPipeline
                 rowsWritten++;
 
                 for (int i = 0; i < verifiers.Length; i++)
-                    verifiers[i].Record(record.Values[i], record.IsNull(i), masked[i], maskedRecord.IsNull(i));
+                    verifiers[i].Record(record.Values[i], record.IsNull(i), masked[i], maskedRecord.IsNull(i), maskers[i].AnchorValue(record));
 
                 if (progress is not null && rowsRead % options.ProgressInterval == 0)
                     progress.Report(rowsRead);
@@ -106,9 +112,9 @@ internal static class MaskingPipeline
         rule.Strategy switch
         {
             MaskingStrategy.Keep => new KeepStrategy(),
-            MaskingStrategy.HashId => new HashIdStrategy(seeds, domain, rule.Options as HashIdOptions ?? new HashIdOptions()),
-            MaskingStrategy.Fake => new FakeStrategy(seeds, domain, (FakeOptions)rule.Options!),
-            MaskingStrategy.ZipRemap => new ZipRemapStrategy(seeds, domain, options.ZipReference),
+            MaskingStrategy.HashId => new HashIdStrategy(seeds, rule.Options as HashIdOptions ?? new HashIdOptions()),
+            MaskingStrategy.Fake => new FakeStrategy(seeds, (FakeOptions)rule.Options!),
+            MaskingStrategy.ZipRemap => new ZipRemapStrategy(seeds, options.ZipReference),
             MaskingStrategy.Perturb => new PerturbStrategy(seeds, domain, rule.Options as PerturbOptions ?? new PerturbOptions()),
             MaskingStrategy.DateShift => new DateShiftStrategy(seeds, domain, rule.Options as DateShiftOptions ?? new DateShiftOptions()),
             MaskingStrategy.Redact => new RedactStrategy(rule.Options as RedactOptions ?? new RedactOptions()),

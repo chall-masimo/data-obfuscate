@@ -27,7 +27,7 @@ public sealed class FallbackZipReference : IZipReference
 /// Maps a ZIP to another with the same 3-digit prefix. Keeps the shape: 5 digits, ZIP+4, or a
 /// 3–4 digit ZIP whose leading zeros were stripped upstream.
 /// </summary>
-internal sealed class ZipRemapStrategy(SeedSource seeds, string domain, IZipReference reference) : IMaskingStrategy
+internal sealed class ZipRemapStrategy(SeedSource seeds, IZipReference reference) : IMaskingStrategy
 {
     private const int ListAttempts = 20;
 
@@ -56,7 +56,7 @@ internal sealed class ZipRemapStrategy(SeedSource seeds, string domain, IZipRefe
             return null;
         }
 
-        var random = seeds.Random(domain, value, attempt == 0 ? null : attempt.ToString(CultureInfo.InvariantCulture));
+        var random = seeds.Random(input.SeedDomain, input.SeedValue, attempt == 0 ? null : attempt.ToString(CultureInfo.InvariantCulture));
         string prefix = zip[..3];
         var known = reference.ZipsWithPrefix(prefix);
         string masked = known is { Count: > 0 } && attempt < ListAttempts

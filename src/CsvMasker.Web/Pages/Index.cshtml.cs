@@ -66,10 +66,11 @@ public sealed class IndexModel(
 
         // Pre-fill from the best matching recipe (exact layout, or ≥ 50% of columns), else from suggestions.
         var match = RecipeMatcher.Best(profile.Header.OriginalNames, recipes.List());
-        var plan = match is null ? MaskingPlan.FromSuggestions(profile) : RecipeMatcher.Apply(profile, match.Recipe);
+        int droppedLinks = 0;
+        var plan = match is null ? MaskingPlan.FromSuggestions(profile) : RecipeMatcher.Apply(profile, match.Recipe, out droppedLinks);
         var job = new Job(owner, upload.FileName, upload.Path, profile, plan, time.GetUtcNow())
         {
-            Recipe = match is null ? null : AppliedRecipe.From(match),
+            Recipe = match is null ? null : AppliedRecipe.From(match, droppedLinks),
             SkipMalformed = match?.Recipe.SkipMalformed ?? false,
         };
         if (!registry.TryAdd(job))

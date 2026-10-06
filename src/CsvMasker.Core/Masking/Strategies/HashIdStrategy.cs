@@ -13,7 +13,7 @@ namespace CsvMasker.Core.Masking.Strategies;
 /// strategy steps through the whole output space from the last draw, so when the space is nearly
 /// full (dense sequential IDs) a free value is always found if one exists.
 /// </remarks>
-internal sealed class HashIdStrategy(SeedSource seeds, string domain, HashIdOptions options) : IMaskingStrategy
+internal sealed class HashIdStrategy(SeedSource seeds, HashIdOptions options) : IMaskingStrategy
 {
     internal const int RandomAttempts = 100;
 
@@ -23,7 +23,7 @@ internal sealed class HashIdStrategy(SeedSource seeds, string domain, HashIdOpti
     {
         string value = input.Value;
         int draw = Math.Min(attempt, RandomAttempts);
-        var random = seeds.Random(domain, value, draw == 0 ? null : draw.ToString(CultureInfo.InvariantCulture));
+        var random = seeds.Random(input.SeedDomain, input.SeedValue, draw == 0 ? null : draw.ToString(CultureInfo.InvariantCulture));
 
         var output = value.ToCharArray();
         Span<(int Index, char Base, int Radix)> positions = value.Length <= 256

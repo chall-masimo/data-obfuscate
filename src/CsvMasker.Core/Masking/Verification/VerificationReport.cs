@@ -34,6 +34,9 @@ public sealed class ColumnVerification
     /// <summary>Mapping strategies must keep distinct counts and never output a source value.</summary>
     public required bool IsMapping { get; init; }
 
+    /// <summary>Linked to an entity group: distinct counts are of (anchor, value) pairs, so one entity's value counts once.</summary>
+    public bool PerEntity { get; init; }
+
     public required long RowCount { get; init; }
     public required long SourceNullCount { get; init; }
     public required long OutputNullCount { get; init; }

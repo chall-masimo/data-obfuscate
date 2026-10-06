@@ -4,7 +4,7 @@ using Bogus;
 namespace CsvMasker.Core.Masking.Strategies;
 
 /// <summary>Deterministic Bogus values. Each value reseeds one shared Faker from its HMAC seed.</summary>
-internal sealed class FakeStrategy(SeedSource seeds, string domain, FakeOptions options) : IMaskingStrategy
+internal sealed class FakeStrategy(SeedSource seeds, FakeOptions options) : IMaskingStrategy
 {
     /// <summary>RFC 2606 reserved domains: they can never receive mail.</summary>
     internal static readonly string[] EmailDomains = ["example.com", "example.net", "example.org"];
@@ -20,15 +20,15 @@ internal sealed class FakeStrategy(SeedSource seeds, string domain, FakeOptions 
         string? suffix = attempt == 0 ? null : attempt.ToString(CultureInfo.InvariantCulture);
         if (options.Kind == FakeKind.Phone)
         {
-            var random = seeds.Random(domain, input.Value, suffix);
+            var random = seeds.Random(input.SeedDomain, input.SeedValue, suffix);
             return PhoneFormat.Mask(input.Value, ref random);
         }
 
-        _faker.Random = new Randomizer(seeds.Int32(domain, input.Value, suffix));
+        _faker.Random = new Randomizer(seeds.Int32(input.SeedDomain, input.SeedValue, suffix));
         string fake = options.Kind switch
         {
             FakeKind.PersonFirst => _faker.Name.FirstName(),
-            FakeKind.PersonLast => _faker.Name.LastName(),
+            FakeKind.PersonLast => LastName(), // draws the first name too, so it matches PersonFull/Email for the same seed
             FakeKind.PersonFull => $"{_faker.Name.FirstName()} {_faker.Name.LastName()}",
             FakeKind.Company => _faker.Company.CompanyName(),
             FakeKind.Hospital => $"{_faker.Address.City()} {_faker.PickRandom(HospitalSuffixes)}",
@@ -50,6 +50,12 @@ internal sealed class FakeStrategy(SeedSource seeds, string domain, FakeOptions 
             return candidate[..at] + number + candidate[at..];
         }
         return options.Kind == FakeKind.Phone ? null : $"{candidate} {number}";
+    }
+
+    private string LastName()
+    {
+        _faker.Name.FirstName();
+        return _faker.Name.LastName();
     }
 
     private string Email()

@@ -33,8 +33,8 @@ public sealed class Recipe
     /// <summary>One entry per column, in file order.</summary>
     public List<RecipeColumn> Columns { get; set; } = [];
 
-    /// <summary>Reserved for entity groups (build step 7); kept verbatim if present.</summary>
-    public List<JsonElement> EntityGroups { get; set; } = [];
+    /// <summary>Entity groups by column name: each anchor column and the columns linked to it.</summary>
+    public List<RecipeEntityGroup> EntityGroups { get; set; } = [];
 
     public bool IsOwnedBy(string user) => string.Equals(Owner, user, StringComparison.OrdinalIgnoreCase);
 }
@@ -51,10 +51,18 @@ public sealed class RecipeColumn
     public bool? IsCount { get; set; }
     public int? MaxDays { get; set; }
     public bool? KeepWeekday { get; set; }
+    public DateShiftMode? DateShiftMode { get; set; }
     public string? RedactText { get; set; }
 
-    /// <summary>Reserved for shared mapping domains (build step 7).</summary>
+    /// <summary>Name of the column whose mapping this column shares (e.g. ShipTo shares BillTo's), if any.</summary>
     public string? MappingDomain { get; set; }
+}
+
+/// <summary>An entity group by column name.</summary>
+public sealed class RecipeEntityGroup
+{
+    public string Anchor { get; set; } = "";
+    public List<string> Members { get; set; } = [];
 }
 
 public static class RecipeJson

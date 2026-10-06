@@ -102,16 +102,16 @@ public class RecipeUnitTests : IDisposable
     public void Store_round_trips_and_checks_owner()
     {
         var store = Store();
-        var created = store.Create("  Monthly extract  ", @"DOMAIN\alice", "sig", [new RecipeColumn { Name = "Id", Strategy = MaskingStrategy.HashId }], skipMalformed: true);
+        var created = store.Create("  Monthly extract  ", @"DOMAIN\alice", "sig", [new RecipeColumn { Name = "Id", Strategy = MaskingStrategy.HashId }], [], skipMalformed: true);
 
         var loaded = store.Get(created.Id)!;
         Assert.Equal("Monthly extract", loaded.Name);
         Assert.True(loaded.SkipMalformed);
         Assert.Single(store.List());
 
-        Assert.Equal(RecipeChange.NotOwner, store.Update(created.Id, @"DOMAIN\bob", "sig2", [], false));
+        Assert.Equal(RecipeChange.NotOwner, store.Update(created.Id, @"DOMAIN\bob", "sig2", [], [], false));
         Assert.Equal(RecipeChange.NotOwner, store.Delete(created.Id, @"DOMAIN\bob"));
-        Assert.Equal(RecipeChange.Done, store.Update(created.Id, @"domain\ALICE", "sig2", [], false)); // owner match is case-insensitive
+        Assert.Equal(RecipeChange.Done, store.Update(created.Id, @"domain\ALICE", "sig2", [], [], false)); // owner match is case-insensitive
         Assert.Equal("sig2", store.Get(created.Id)!.HeaderSignature);
         Assert.Equal(RecipeChange.Done, store.Delete(created.Id, @"DOMAIN\alice"));
         Assert.Equal(RecipeChange.NotFound, store.Delete(created.Id, @"DOMAIN\alice"));
@@ -122,7 +122,7 @@ public class RecipeUnitTests : IDisposable
     public void Corrupt_or_future_files_are_skipped()
     {
         var store = Store();
-        store.Create("good", "u", "sig", [], false);
+        store.Create("good", "u", "sig", [], [], false);
         File.WriteAllText(Path.Combine(_folder, $"{Guid.NewGuid()}.json"), "{ not json");
         File.WriteAllText(Path.Combine(_folder, $"{Guid.NewGuid()}.json"), $$"""{ "schemaVersion": 99, "id": "{{Guid.NewGuid()}}" }""");
 

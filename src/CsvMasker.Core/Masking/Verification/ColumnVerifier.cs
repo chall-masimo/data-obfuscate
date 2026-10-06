@@ -45,7 +45,11 @@ internal sealed class ColumnVerifier
 
     public string? Warning { get; init; }
 
-    public void Record(string source, bool sourceIsNull, string output, bool outputIsNull)
+    /// <summary>Linked to an entity group: distinct counts are of (anchor, value) pairs.</summary>
+    public bool PerEntity { get; init; }
+
+    /// <param name="anchor">The row's anchor value for a linked column (null when unlinked or blank).</param>
+    public void Record(string source, bool sourceIsNull, string output, bool outputIsNull, string? anchor = null)
     {
         _rows++;
         if (sourceIsNull) _sourceNulls++;
@@ -53,13 +57,13 @@ internal sealed class ColumnVerifier
 
         if (!sourceIsNull && !string.IsNullOrWhiteSpace(source))
         {
-            if (_isMapping) _sourceHashes!.Add(DistinctCounter.Hash(source));
+            if (_isMapping) _sourceHashes!.Add(DistinctCounter.Hash(ColumnMasker.MappingKey(source, anchor)));
             else _sourceEstimate!.Add(source);
             if (string.Equals(source, output, StringComparison.Ordinal)) _unchanged++;
         }
         if (!outputIsNull && !string.IsNullOrWhiteSpace(output))
         {
-            if (_isMapping) _outputHashes!.Add(DistinctCounter.Hash(output));
+            if (_isMapping) _outputHashes!.Add(DistinctCounter.Hash(ColumnMasker.MappingKey(output, anchor)));
             else _outputEstimate!.Add(output);
         }
 
@@ -96,6 +100,7 @@ internal sealed class ColumnVerifier
             Key = _key,
             Strategy = _strategy,
             IsMapping = _isMapping,
+            PerEntity = PerEntity,
             RowCount = _rows,
             SourceNullCount = _sourceNulls,
             OutputNullCount = _outputNulls,

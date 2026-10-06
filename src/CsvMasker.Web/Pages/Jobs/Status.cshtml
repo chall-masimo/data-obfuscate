@@ -120,7 +120,7 @@
                     @foreach (var c in report.Columns)
                     {
                         <tr class="@(c.Failures.Count > 0 ? "table-danger" : "")">
-                            <td>@c.Key</td>
+                            <td>@c.Key@if (c.PerEntity) { <span class="badge text-bg-light border ms-1" title="Linked to an entity group: counts are of (entity, value) pairs">per entity</span> }</td>
                             <td>@c.Strategy</td>
                             <td>@c.RowCount.ToString("N0")</td>
                             <td>@c.SourceNullCount.ToString("N0") → @c.OutputNullCount.ToString("N0")</td>

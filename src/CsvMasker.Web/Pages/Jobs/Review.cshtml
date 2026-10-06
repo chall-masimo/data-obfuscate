@@ -5,8 +5,17 @@
     var file = Model.Job.Profile;
     var strategies = Html.GetEnumSelectList<MaskingStrategy>();
     var fakeKinds = Html.GetEnumSelectList<FakeKind>();
-    var perturbModes = new[] { PerturbMode.PerRow, PerturbMode.Global }
-        .Select(m => new SelectListItem(m == PerturbMode.PerRow ? "Per row" : "Global (one factor)", m.ToString()));
+    var perturbModes = new[]
+    {
+        new SelectListItem("Per row", nameof(PerturbMode.PerRow)),
+        new SelectListItem("Global (one factor)", nameof(PerturbMode.Global)),
+        new SelectListItem("Per entity (linked)", nameof(PerturbMode.PerEntity)),
+    };
+    var dateShiftModes = new[]
+    {
+        new SelectListItem("Global (one offset)", nameof(DateShiftMode.Global)),
+        new SelectListItem("Per entity (linked)", nameof(DateShiftMode.PerEntity)),
+    };
 }
 
 <partial name="_JobNav" model="Model.Job" />
@@ -53,6 +62,22 @@ else
         @if (applied.Unassigned > 0)
         {
             <strong>@applied.Unassigned column(s) are new and need a strategy</strong><span> (highlighted below).</span>
+        }
+        @if (applied.DroppedLinks > 0)
+        {
+            <div data-test="dropped-links">@applied.DroppedLinks link(s) from the recipe refer to columns this file doesn't have and were left out.</div>
+        }
+    </div>
+}
+
+@{ var groups = Model.Groups(); }
+@if (groups.Count > 0)
+{
+    <div class="alert alert-light border small" data-test="entity-groups">
+        <strong>Entity groups.</strong> Linked columns are seeded from their anchor, so each entity gets one coherent fake identity:
+        @foreach (var group in groups)
+        {
+            <div>@Model.NameOf(group.Anchor) → @string.Join(", ", group.Members.Select(Model.NameOf))</div>
         }
     </div>
 }
@@ -162,6 +187,7 @@ else
                                 <div class="input-group input-group-sm">
                                     <span class="input-group-text">± days</span>
                                     <input asp-for="Columns[i].MaxDays" type="number" min="1" max="3650" class="form-control" />
+                                    <select asp-for="Columns[i].DateShiftMode" asp-items="dateShiftModes" class="form-select"></select>
                                 </div>
                                 <div class="form-check form-check-inline small">
                                     <input asp-for="Columns[i].KeepWeekday" class="form-check-input" />
@@ -172,6 +198,20 @@ else
                             <div class="opt mt-1" data-for="Redact">
                                 <input asp-for="Columns[i].RedactText" class="form-control form-control-sm" placeholder="[REDACTED]" />
                             </div>
+                            <div class="d-flex flex-wrap gap-1 mt-2 small" data-test="links">
+                                <select asp-for="Columns[i].LinkedTo" asp-items="Model.AnchorChoices(column.Key, Model.Columns[i].LinkedTo)"
+                                        class="form-select form-select-sm w-auto" title="Seed this column from an anchor column, so one entity gets one coherent identity">
+                                    <option value="">Not linked</option>
+                                </select>
+                                <select asp-for="Columns[i].SameMappingAs" asp-items="Model.DomainChoices(column.Key, Model.Columns[i].SameMappingAs)"
+                                        class="form-select form-select-sm w-auto" title="Map values exactly as another column does (e.g. BillTo and ShipTo)">
+                                    <option value="">Own mapping</option>
+                                </select>
+                            </div>
+                            @foreach (var note in Model.NotesFor(i))
+                            {
+                                <div class="small text-warning-emphasis" data-test="link-note">⚠ @note</div>
+                            }
                         </td>
                     </tr>
                 }

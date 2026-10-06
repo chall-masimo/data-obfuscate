@@ -8,13 +8,21 @@ namespace CsvMasker.Core.Masking.Strategies;
 /// string are rewritten (same widths, same month-name casing); time, fraction and offset stay
 /// byte-for-byte, so each value keeps its exact source format.
 /// </summary>
+/// <remarks>
+/// Modes: Global (one offset for the column) and PerEntity (one offset per anchor value, so one
+/// customer's dates shift together). A PerEntity row with a blank anchor uses the Global offset.
+/// </remarks>
 internal sealed class DateShiftStrategy : IMaskingStrategy
 {
+    private readonly SeedSource _seeds;
+    private readonly DateShiftOptions _options;
     private readonly string[] _formats;
     private readonly int _offsetDays;
 
     public DateShiftStrategy(SeedSource seeds, string domain, DateShiftOptions options)
     {
+        _seeds = seeds;
+        _options = options;
         _formats = (options.Formats ?? [])
             .Concat(DateMatcher.Formats.Select(f => f.Pattern))
             .Distinct(StringComparer.Ordinal)
@@ -27,14 +35,24 @@ internal sealed class DateShiftStrategy : IMaskingStrategy
 
     internal int OffsetDays => _offsetDays;
 
+    /// <summary>The offset applied to a row: per anchor in PerEntity mode, otherwise the column's.</summary>
+    internal int OffsetFor(in MaskInput input)
+    {
+        if (_options.Mode != DateShiftMode.PerEntity || !input.LinkedToEntity)
+            return _offsetDays;
+        var random = _seeds.Random(input.SeedDomain, input.SeedValue, "dateshift");
+        return Offset(ref random, _options);
+    }
+
     public string? Mask(in MaskInput input, int attempt)
     {
         string value = input.Value;
+        int offset = OffsetFor(input);
         foreach (var format in _formats)
         {
             if (!DateTime.TryParseExact(value, format, CultureInfo.InvariantCulture, DateTimeStyles.None, out _))
                 continue;
-            if (DateComponents.TryLocate(value, format, out var parts) && parts.TryShift(value, _offsetDays, out var shifted))
+            if (DateComponents.TryLocate(value, format, out var parts) && parts.TryShift(value, offset, out var shifted))
                 return shifted;
         }
         return null;

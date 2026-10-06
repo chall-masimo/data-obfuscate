@@ -5,6 +5,7 @@ using CsvMasker.Web.Jobs;
 using CsvMasker.Web.Options;
 using CsvMasker.Web.Recipes;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.Extensions.Options;
 
 namespace CsvMasker.Web.Pages.Jobs;
@@ -50,7 +51,7 @@ public sealed class ReviewModel(
 
         LoadChoices();
         Columns = Job.Profile.Columns
-            .Select(c => ColumnInput.From(c.Key, Job.Plan.Columns.GetValueOrDefault(c.Key), Suggestions[c.Key]))
+            .Select(c => ColumnInput.From(c.Key, Job.Plan.Columns.GetValueOrDefault(c.Key), Suggestions[c.Key], Job.Plan.AnchorOf(c.Key)))
             .ToList();
         SkipMalformed = Job.SkipMalformed;
         return Page();
@@ -67,13 +68,14 @@ public sealed class ReviewModel(
         if (!Confirmed)
             ModelState.AddModelError(nameof(Confirmed), "Tick the box to confirm you have reviewed every column.");
 
+        ResolveSharedMappings();
         var profiles = Job.Profile.Columns.ToDictionary(c => c.Key, StringComparer.Ordinal);
         var rules = new Dictionary<string, ColumnRule>(StringComparer.Ordinal);
         foreach (var input in Columns)
             if (profiles.TryGetValue(input.Key, out var profile) && input.ToRule(profile) is { } rule)
                 rules.TryAdd(input.Key, rule);
 
-        var plan = new MaskingPlan(rules);
+        var plan = new MaskingPlan(rules, Groups());
         try
         {
             plan.Validate(Job.Profile.Header);
@@ -131,8 +133,9 @@ public sealed class ReviewModel(
         {
             if (Job.State is not (JobState.Uploaded or JobState.Reviewed))
                 return RedirectToStep();
-            Job.Plan = match is null ? MaskingPlan.FromSuggestions(Job.Profile) : RecipeMatcher.Apply(Job.Profile, match.Recipe);
-            Job.Recipe = match is null ? null : AppliedRecipe.From(match);
+            int droppedLinks = 0;
+            Job.Plan = match is null ? MaskingPlan.FromSuggestions(Job.Profile) : RecipeMatcher.Apply(Job.Profile, match.Recipe, out droppedLinks);
+            Job.Recipe = match is null ? null : AppliedRecipe.From(match, droppedLinks);
             Job.SkipMalformed = match?.Recipe.SkipMalformed ?? false;
             // A different pre-fill needs a fresh review and confirmation.
             Job.Session?.Dispose();
@@ -142,6 +145,71 @@ public sealed class ReviewModel(
 
         logger.LogInformation("Job {JobId}: {User} applied recipe {RecipeId}", Job.Id, Job.Owner, match?.Recipe.Id);
         return RedirectToPage(new { id });
+    }
+
+    /// <summary>
+    /// "Same mapping as" chains (A → B → C) all share the root column's domain, so A, B and C map
+    /// identically. A cycle is broken by leaving the column on its own mapping.
+    /// </summary>
+    private void ResolveSharedMappings()
+    {
+        var partner = Columns.Where(c => !string.IsNullOrEmpty(c.SameMappingAs)).ToDictionary(c => c.Key, c => c.SameMappingAs!, StringComparer.Ordinal);
+        foreach (var input in Columns.Where(c => !string.IsNullOrEmpty(c.SameMappingAs)))
+        {
+            string root = input.SameMappingAs!;
+            var visited = new HashSet<string>(StringComparer.Ordinal) { input.Key };
+            while (partner.TryGetValue(root, out var next) && visited.Add(root))
+                root = next;
+            input.SameMappingAs = root == input.Key ? null : root;
+        }
+    }
+
+    /// <summary>Entity groups as currently chosen on the form: columns grouped by the anchor they're linked to.</summary>
+    public IReadOnlyList<EntityGroup> Groups() =>
+        Columns.Where(c => !string.IsNullOrEmpty(c.LinkedTo))
+            .GroupBy(c => c.LinkedTo!, StringComparer.Ordinal)
+            .Select(g => new EntityGroup(g.Key, g.Select(c => c.Key).ToArray()))
+            .ToArray();
+
+    public string NameOf(string key) =>
+        Job.Profile.Columns.FirstOrDefault(c => c.Key == key) is { } c && !string.IsNullOrWhiteSpace(c.OriginalName) ? c.OriginalName : key;
+
+    /// <summary>Anchor candidates: identifier columns (plus the current choice), excluding the column itself.</summary>
+    public IEnumerable<SelectListItem> AnchorChoices(string key, string? current) =>
+        Job.Profile.Columns
+            .Where(c => c.Key != key && (c.Type == DetectedType.Identifier || c.Key == current))
+            .Select(c => new SelectListItem($"Linked to {NameOf(c.Key)}", c.Key));
+
+    /// <summary>Columns to share a mapping with: same detected type (plus the current choice).</summary>
+    public IEnumerable<SelectListItem> DomainChoices(string key, string? current)
+    {
+        var type = Job.Profile.Columns.First(c => c.Key == key).Type;
+        return Job.Profile.Columns
+            .Where(c => c.Key != key && (c.Type == type || c.Key == current))
+            .Select(c => new SelectListItem($"Same mapping as {NameOf(c.Key)}", c.Key));
+    }
+
+    /// <summary>Things to know about a linked column (distribution change, shared fake person).</summary>
+    public IEnumerable<string> NotesFor(int index)
+    {
+        var input = Columns[index];
+        if (string.IsNullOrEmpty(input.LinkedTo))
+            yield break;
+
+        var column = ProfileFor(input);
+        var anchor = Job.Profile.Columns.FirstOrDefault(c => c.Key == input.LinkedTo);
+        if (anchor is not null && column.DistinctCount < anchor.DistinctCount * 0.5)
+            yield return $"{NameOf(column.Key)} has {(column.DistinctIsEstimate ? "about " : "")}{column.DistinctCount:N0} distinct values across "
+                + $"{(anchor.DistinctIsEstimate ? "about " : "")}{anchor.DistinctCount:N0} {NameOf(anchor.Key)} values: linking gives each one its own value "
+                + $"and changes {NameOf(column.Key)}'s distribution.";
+
+        if (input.Strategy == MaskingStrategy.Fake && input.FakeKind is FakeKind.PersonFull)
+        {
+            var others = Columns.Where(c => c != input && c.LinkedTo == input.LinkedTo && c.Strategy == MaskingStrategy.Fake && c.FakeKind == FakeKind.PersonFull)
+                .Select(c => NameOf(c.Key)).ToList();
+            if (others.Count > 0)
+                yield return $"{NameOf(column.Key)} and {string.Join(", ", others)} are both person names linked to {NameOf(input.LinkedTo)}: they'll get the same fake person.";
+        }
     }
 
     public ColumnProfile ProfileFor(ColumnInput input) =>
@@ -182,14 +250,28 @@ public sealed class ColumnInput
     [StringLength(100)]
     public string? RedactText { get; set; }
 
+    public DateShiftMode DateShiftMode { get; set; } = DateShiftMode.Global;
+
+    /// <summary>Key of the anchor column this column is linked to (entity group), or empty.</summary>
+    public string? LinkedTo { get; set; }
+
+    /// <summary>Key of a column whose mapping this column shares (mapping domain), or empty.</summary>
+    public string? SameMappingAs { get; set; }
+
     /// <summary>
     /// Fields for a column. With no rule the strategy is left blank, but the options are
     /// pre-set from the suggestion so picking the suggested strategy gives sensible defaults.
     /// </summary>
-    public static ColumnInput From(string key, ColumnRule? rule, ColumnRule suggestion)
+    public static ColumnInput From(string key, ColumnRule? rule, ColumnRule suggestion, string? anchor)
     {
         var source = rule ?? suggestion;
-        var input = new ColumnInput { Key = key, Strategy = rule?.Strategy };
+        var input = new ColumnInput
+        {
+            Key = key,
+            Strategy = rule?.Strategy,
+            LinkedTo = anchor,
+            SameMappingAs = rule?.MappingDomain is { } domain && domain != key ? domain : null,
+        };
         switch (source.Options)
         {
             case HashIdOptions o: input.Prefix = o.Prefix; break;
@@ -202,6 +284,7 @@ public sealed class ColumnInput
             case DateShiftOptions o:
                 input.MaxDays = o.MaxDays;
                 input.KeepWeekday = o.KeepWeekday;
+                input.DateShiftMode = o.Mode;
                 break;
             case RedactOptions o: input.RedactText = o.Text; break;
         }
@@ -209,14 +292,18 @@ public sealed class ColumnInput
     }
 
     /// <summary>The rule for this column, or null while no strategy is chosen.</summary>
-    public ColumnRule? ToRule(ColumnProfile profile) => Strategy switch
+    public ColumnRule? ToRule(ColumnProfile profile)
     {
-        null => null,
-        MaskingStrategy.HashId => new(MaskingStrategy.HashId, new HashIdOptions(Prefix?.Trim() ?? "")),
-        MaskingStrategy.Fake => new(MaskingStrategy.Fake, new FakeOptions(FakeKind)),
-        MaskingStrategy.Perturb => new(MaskingStrategy.Perturb, new PerturbOptions(PerturbPercent / 100.0, PerturbMode, IsCount)),
-        MaskingStrategy.DateShift => new(MaskingStrategy.DateShift, new DateShiftOptions(MaxDays, DateShiftMode.Global, KeepWeekday, profile.DateFormats)),
-        MaskingStrategy.Redact => new(MaskingStrategy.Redact, new RedactOptions(string.IsNullOrEmpty(RedactText) ? RedactOptions.DefaultText : RedactText)),
-        { } strategy => new(strategy),
-    };
+        string? domain = string.IsNullOrEmpty(SameMappingAs) ? null : SameMappingAs;
+        return Strategy switch
+        {
+            null => null,
+            MaskingStrategy.HashId => new(MaskingStrategy.HashId, new HashIdOptions(Prefix?.Trim() ?? ""), domain),
+            MaskingStrategy.Fake => new(MaskingStrategy.Fake, new FakeOptions(FakeKind), domain),
+            MaskingStrategy.Perturb => new(MaskingStrategy.Perturb, new PerturbOptions(PerturbPercent / 100.0, PerturbMode, IsCount), domain),
+            MaskingStrategy.DateShift => new(MaskingStrategy.DateShift, new DateShiftOptions(MaxDays, DateShiftMode, KeepWeekday, profile.DateFormats), domain),
+            MaskingStrategy.Redact => new(MaskingStrategy.Redact, new RedactOptions(string.IsNullOrEmpty(RedactText) ? RedactOptions.DefaultText : RedactText), domain),
+            { } strategy => new(strategy, null, domain),
+        };
+    }
 }

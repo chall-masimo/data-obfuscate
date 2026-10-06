@@ -194,6 +194,49 @@ groups). Use the seed bytes to drive a seeded `Random`/Bogus `Faker` instance.
   `ShipTo_Customer`) so the same source value maps identically in both.
 - `PerEntity` perturbation and date shifting reference an entity group's anchor.
 
+Decisions made while building step 7 (`Core/Masking`, review page, recipes):
+- **Seeding:** every linked column is seeded from `HMAC(jobKey, "entity:{anchorKey}" ␟
+  anchorValue)`, so all of one entity's columns draw the same randomness. A customer's fake
+  name, first/last name and email agree. `PersonLast` draws the first name before the last
+  name so it lines up with `PersonFull` and `Email`. Strategies still read the *format* from
+  the cell's own value: HashId shape, ZIP prefix, phone format and number formatting. Lorem
+  ignores links.
+- **One entity = one person.** Two person-name columns in one group get the same fake person.
+  The review page notes it; use separate anchors for different people.
+- **Linked mappings are keyed by (anchor, value):**
+  - one entity always gets the same output;
+  - within one entity, distinct values (e.g. "Acme" vs "ACME Inc") get distinct outputs;
+  - *different entities may share an output*, as real customers share first names.
+    Enforcing uniqueness across entities would break name/email coherence and exhaust name
+    pools.
+
+  Verification for linked mapping columns compares distinct (anchor, source) pairs with
+  distinct (anchor, output) pairs, and the report labels them "per entity". The usual
+  null/unchanged checks still apply.
+- **Blank or null anchor on a row:** that row uses ordinary value-seeded masking. PerEntity
+  modes fall back to the column's Global factor or offset.
+- **PerEntity Perturb/DateShift** take their factor or offset from the same entity seed (with a
+  purpose suffix), so one customer's amounts move together and their dates shift together.
+  KeepWeekday is honored.
+- **Validation:** anchors and members must exist; no self-links, no column in two groups, no
+  anchor that is itself linked, no empty groups. A linked column can't also share a mapping
+  domain. PerEntity requires the column to be linked.
+- **Suggestions:** an Identifier with a strong ID hint (`Customer_ID`) anchors person/org
+  name, email, phone and street-address columns sharing its name prefix. The longest prefix
+  wins, so `Account_Owner_ID` beats `Account_ID` for `Account_Owner_Name`. City/State/ZIP
+  are never auto-linked.
+- **Review page:**
+  - Per column: "Linked to" (anchor choices are Identifier columns) and "Same mapping as"
+    (columns of the same detected type). Chains A→B→C resolve to the root.
+  - Mode selects include "Per entity (linked)".
+  - A warning appears when a linked column has < 50% of its anchor's distinct values.
+- **Recipes** store groups (`entityGroups: [{anchor, members}]`) and shared mappings
+  (`mappingDomain`) by column *name*. On apply they're resolved to the file's keys; links to
+  missing columns are dropped and counted in the banner. The schema stays version 1, since
+  these fields were reserved.
+- **Regression guard:** a test pins the SHA-256 of a fixed masked file for a plan without
+  groups, so seeding changes can't silently alter how existing plans mask.
+
 ### Derived columns (v2, design for it now)
 Allow marking a column as derived from others (`Amount = Price * Qty`) and recompute it from
 masked inputs instead of masking it independently. Not in v1, but don't architect it out.

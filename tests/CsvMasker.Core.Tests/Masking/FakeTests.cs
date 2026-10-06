@@ -100,7 +100,7 @@ public class FakeTests
     [Fact]
     public void Email_suffix_goes_before_the_at_sign()
     {
-        var strategy = new FakeStrategy(new SeedSource((byte[])TestMasker.KeyA.Clone()), "d", new FakeOptions(FakeKind.Email));
+        var strategy = new FakeStrategy(new SeedSource((byte[])TestMasker.KeyA.Clone()), new FakeOptions(FakeKind.Email));
 
         Assert.Equal("jane.doe7@example.com", strategy.Disambiguate("jane.doe@example.com", 7));
     }

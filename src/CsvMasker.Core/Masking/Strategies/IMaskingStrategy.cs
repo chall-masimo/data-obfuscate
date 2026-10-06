@@ -2,8 +2,14 @@ using CsvMasker.Core.Csv;
 
 namespace CsvMasker.Core.Masking.Strategies;
 
-/// <summary>A non-empty source value plus its position. Row gives access to other columns (for entity groups later).</summary>
-internal readonly record struct MaskInput(string Value, CsvRecord Row);
+/// <summary>
+/// A non-empty source value plus where its randomness comes from. Strategies read the value's
+/// format from <see cref="Value"/> but derive every random choice from
+/// (<see cref="SeedDomain"/>, <see cref="SeedValue"/>). For an ordinary column that's the
+/// column's mapping domain and the value itself. For a column linked to an entity group it's the
+/// group and the row's anchor value, so all of one entity's columns draw the same randomness.
+/// </summary>
+internal readonly record struct MaskInput(string Value, CsvRecord Row, string SeedDomain, string SeedValue, bool LinkedToEntity = false);
 
 /// <summary>
 /// One column's strategy. Strategies only transform non-blank values: nulls, empties and

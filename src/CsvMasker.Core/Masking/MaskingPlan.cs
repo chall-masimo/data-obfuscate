@@ -14,13 +14,19 @@ public sealed record ColumnRule(MaskingStrategy Strategy, StrategyOptions? Optio
 /// </summary>
 public sealed class MaskingPlan
 {
-    public MaskingPlan(IReadOnlyDictionary<string, ColumnRule> columns)
+    public MaskingPlan(IReadOnlyDictionary<string, ColumnRule> columns, IReadOnlyList<EntityGroup>? entityGroups = null)
     {
         ArgumentNullException.ThrowIfNull(columns);
         Columns = new Dictionary<string, ColumnRule>(columns, StringComparer.Ordinal);
+        EntityGroups = entityGroups?.ToArray() ?? [];
     }
 
     public IReadOnlyDictionary<string, ColumnRule> Columns { get; }
+
+    public IReadOnlyList<EntityGroup> EntityGroups { get; }
+
+    /// <summary>The anchor key a column is linked to, or null.</summary>
+    public string? AnchorOf(string key) => EntityGroups.FirstOrDefault(g => g.Members.Contains(key, StringComparer.Ordinal))?.Anchor;
 
     /// <summary>Checks the plan against a file's header (fail closed).</summary>
     /// <exception cref="MaskingPlanException">Any column is unassigned or misconfigured.</exception>
@@ -46,6 +52,6 @@ public sealed class MaskingPlan
             };
             rules[column.Key] = new ColumnRule(suggestion.Strategy, options);
         }
-        return new MaskingPlan(rules);
+        return new MaskingPlan(rules, EntityGroupSuggester.Suggest(profile));
     }
 }

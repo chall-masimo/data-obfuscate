@@ -76,7 +76,8 @@ public sealed class StatusModel(JobRegistry registry, JobRunner runner, TempFile
             return Page();
         }
 
-        var recipe = recipes.Create(recipeName, Job.Owner, HeaderSignature.Compute(Job.Profile.Header.OriginalNames), RecipeColumns(), Job.SkipMalformed);
+        var (columns, groups) = RecipeMatcher.ToRecipe(Job.Profile, Job.Plan);
+        var recipe = recipes.Create(recipeName, Job.Owner, HeaderSignature.Compute(Job.Profile.Header.OriginalNames), columns, groups, Job.SkipMalformed);
         Job.Recipe = new AppliedRecipe(recipe.Id, recipe.Name, recipe.Owner, RecipeMatchKind.Exact, Job.Profile.Columns.Count, Job.Profile.Columns.Count);
         RecipeMessage = $"Saved as recipe \"{recipe.Name}\". Files with these columns will be pre-filled from it.";
         return RedirectToPage(new { id });
@@ -90,7 +91,8 @@ public sealed class StatusModel(JobRegistry registry, JobRunner runner, TempFile
         if (Job.State != JobState.Completed || Job.Recipe is null)
             return RedirectToPage(new { id });
 
-        var result = recipes.Update(Job.Recipe.Id, Job.Owner, HeaderSignature.Compute(Job.Profile.Header.OriginalNames), RecipeColumns(), Job.SkipMalformed);
+        var (columns, groups) = RecipeMatcher.ToRecipe(Job.Profile, Job.Plan);
+        var result = recipes.Update(Job.Recipe.Id, Job.Owner, HeaderSignature.Compute(Job.Profile.Header.OriginalNames), columns, groups, Job.SkipMalformed);
         RecipeMessage = result switch
         {
             RecipeChange.Done => $"Updated recipe \"{Job.Recipe.Name}\".",
@@ -100,11 +102,4 @@ public sealed class StatusModel(JobRegistry registry, JobRunner runner, TempFile
         return RedirectToPage(new { id });
     }
 
-    private List<RecipeColumn> RecipeColumns()
-    {
-        var header = Job.Profile.Header;
-        return header.Keys
-            .Select((key, i) => RuleMapper.ToRecipeColumn(header.OriginalNames[i], Job.Plan.Columns[key]))
-            .ToList();
-    }
 }
