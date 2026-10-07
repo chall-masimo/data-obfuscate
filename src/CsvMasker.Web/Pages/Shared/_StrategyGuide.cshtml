@@ -1,0 +1,120 @@
+@* Plain-language guide to the masking strategies, for users who aren't technical. Examples are illustrative. *@
+<section id="strategies" class="mt-4" data-test="strategy-guide" style="max-width: 72rem">
+    <h2 class="h4">What the masking strategies do</h2>
+    <p>
+        After you upload a file, each column gets a <strong>strategy</strong>: the rule for how its values are disguised.
+        The tool suggests one for every column; you can change any of them before anything runs.
+        Masking only works one way: masked values can't be turned back into the originals.
+    </p>
+
+    <div class="table-responsive">
+        <table class="table table-sm align-top">
+            <thead class="table-light">
+                <tr>
+                    <th style="width: 9rem">Strategy</th>
+                    <th>What it does</th>
+                    <th style="width: 15rem">Example (before → after)</th>
+                    <th style="width: 15rem">Good for</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>Keep</strong></td>
+                    <td>Leaves the column exactly as it is.</td>
+                    <td><code>North</code> → <code>North</code></td>
+                    <td>Information that isn't sensitive: regions, statuses, states, yes/no flags.</td>
+                </tr>
+                <tr>
+                    <td><strong>HashId</strong></td>
+                    <td>
+                        Swaps each code for a random-looking one with the same shape: same length, letters stay letters,
+                        digits stay digits, dashes stay put. The same original code always becomes the same new code.
+                    </td>
+                    <td><code>CUST-00042</code> → <code>QZRT-07193</code></td>
+                    <td>Customer IDs, account numbers, order numbers, any code that links records together.</td>
+                </tr>
+                <tr>
+                    <td><strong>Fake</strong></td>
+                    <td>
+                        Replaces the value with a realistic but made-up one of the kind you choose: person name, first or last name,
+                        company, hospital, email, phone, street address or city. The same original always gets the same fake.
+                        Fake emails use example.com addresses, which can never receive mail.
+                    </td>
+                    <td><code>Jane Smith</code> → <code>Carlos Rivera</code></td>
+                    <td>Names of people and organizations, contact details, addresses.</td>
+                </tr>
+                <tr>
+                    <td><strong>ZipRemap</strong></td>
+                    <td>
+                        Changes a ZIP code to another one in the same area (the first 3 digits stay the same), so regional
+                        totals still add up. The new ZIP may not be a real mailing ZIP.
+                    </td>
+                    <td><code>02134</code> → <code>02187</code></td>
+                    <td>ZIP / postal code columns (US only).</td>
+                </tr>
+                <tr>
+                    <td><strong>Perturb</strong></td>
+                    <td>
+                        Nudges each number up or down by a small random amount (by default up to 15%). The format, the sign,
+                        the decimal places and zeros are kept, so totals and charts look about the same, just not exact.
+                    </td>
+                    <td><code>$1,250.00</code> → <code>$1,318.75</code></td>
+                    <td>Amounts, prices, revenue, quantities, counts.</td>
+                </tr>
+                <tr>
+                    <td><strong>DateShift</strong></td>
+                    <td>
+                        Moves every date by the same random number of days (by default up to 30, earlier or later), so
+                        gaps between dates and their order stay the same. The date format and any time of day are kept.
+                    </td>
+                    <td><code>03/05/2024</code> → <code>03/19/2024</code></td>
+                    <td>Order dates, visit dates, any date that could help identify someone.</td>
+                </tr>
+                <tr>
+                    <td><strong>Redact</strong></td>
+                    <td>Replaces every non-blank value with <code>[REDACTED]</code> (or text you choose).</td>
+                    <td><code>Called about a refund…</code> → <code>[REDACTED]</code></td>
+                    <td>Free-text notes and comments, or anything you don't need in the test data at all.</td>
+                </tr>
+                <tr>
+                    <td><strong>Lorem</strong></td>
+                    <td>
+                        Replaces text with placeholder words of exactly the same length, so reports and layouts look
+                        the same without showing the real text.
+                    </td>
+                    <td><code>Called about a refund</code> → <code>Lorem ipsum dolor sit</code></td>
+                    <td>Free text where the length matters, e.g. testing how a report's text boxes wrap.</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <h3 class="h6 mt-3">Good to know</h3>
+    <ul class="small">
+        <li><strong>Blank cells stay blank</strong> with every strategy, and the file keeps the same rows, columns and column names.</li>
+        <li><strong>Consistent within a file:</strong> with HashId, Fake and ZipRemap, a value that appears many times is masked the same way every time, so counts and joins still work. A new upload gets different masked values.</li>
+        <li><strong>Values that don't fit a strategy</strong> (for example "N/A" in an amount column) are replaced with <code>[REDACTED]</code>, never left as they were, and the report tells you how many.</li>
+    </ul>
+
+    <h3 class="h6 mt-3">Other options on the review screen</h3>
+    <dl class="small row">
+        <dt class="col-sm-3">Linked to (another column)</dt>
+        <dd class="col-sm-9">
+            Ties a column to an ID column, such as linking Customer_Name to Customer_ID. Every row for the same customer then gets the
+            same fake identity, and their fake name and email match. The tool suggests links automatically.
+        </dd>
+        <dt class="col-sm-3">Same mapping as (another column)</dt>
+        <dd class="col-sm-9">
+            Makes two columns mask identically, for example Bill-to and Ship-to customer, so the same customer looks the same in both.
+        </dd>
+        <dt class="col-sm-3">Per entity</dt>
+        <dd class="col-sm-9">
+            For Perturb and DateShift on a linked column: each customer gets their own adjustment, so all of one customer's
+            amounts move together and all of their dates shift together.
+        </dd>
+        <dt class="col-sm-3">Recipes</dt>
+        <dd class="col-sm-9">
+            Saved column settings (never any data). If you upload a file with the same columns again, your choices are filled in for you.
+        </dd>
+    </dl>
+</section>

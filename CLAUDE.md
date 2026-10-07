@@ -466,11 +466,31 @@ fails if it resolves inside `wwwroot`. A test asserts `web.config` and
 - **Tests** replace Negotiate with a header-driven test scheme, since Negotiate needs Kestrel or
   IIS. Real Windows sign-in was checked on Kestrel with `curl --negotiate`.
 
-## Open items (confirm with Chris)
+## Open items (all resolved)
 
-- ~~AD group name for authorization~~: set per server in `appsettings.Production.json` (step 5).
-- ~~Maximum upload size~~: 200 MB (209,715,200 bytes), decided in step 4.
-- (Fallback shipped in step 3; a list plugs in via `IZipReference`.)
-  Source for the bundled US ZIP reference list (public dataset; must be licensed for
-  internal use) and whether non-US postal codes need handling.
-- IIS site/application path (assumed `/csvmasker` under an existing HTTPS site).
+- **AD group name:** set per server in `appsettings.Production.json` (step 5). The template is
+  `deploy/appsettings.Production.template.json`; `deploy/Test-CsvMaskerSettings.ps1` checks it.
+- **Maximum upload size:** 200 MB (209,715,200 bytes), decided in step 4.
+- **US ZIP reference list:** decided to **keep the fallback** (first 3 digits kept, rest
+  derived; ZIPs may not geocode, and the report says so). A licensed list can still be plugged
+  in later through `IZipReference` without other code changes. Census ZCTA (public domain)
+  was the leading candidate if this is revisited.
+- **Non-US postal codes:** **US only.** A non-US value in a ZipRemap column is redacted and
+  counted as a warning in the report, never passed through.
+- **IIS path:** confirmed as `/csvmasker` under the existing site.
+- **HTTP, not HTTPS (decided by Chris):** the site has only a `:80` binding, like the server's
+  other internal apps. The accepted risk is that uploads, downloads and review/preview pages
+  travel unencrypted on the internal network; DEPLOY_IIS.md step 7 records it and how to add
+  HTTPS later. The app still calls `UseHttpsRedirection`, which only acts once an HTTPS
+  binding exists. It sends **no HSTS** (removed): HSTS applies to the whole shared host name
+  and would break its HTTP-only apps (e.g. SSRS). A test asserts the header is absent.
+
+## Deployment helpers (`deploy/`, not part of the published app)
+- `appsettings.Production.template.json`: copy to the server as `appsettings.Production.json`
+  and fill in. Real `appsettings.Production.json` files are git-ignored.
+- `Test-CsvMaskerSettings.ps1`: validates a settings file. It checks that the AD group is set
+  and resolves, that the folders are absolute, separate and outside the web root, and that
+  the upload limit matches web.config.
+- `Test-CsvMaskerServer.ps1`: a read-only pre-flight for DEPLOY_IIS.md steps 1–8 (features,
+  Hosting Bundle, app pool, folders and permissions, IIS application, authentication, HTTPS (`-AllowHttp` turns a missing binding into a WARN),
+  settings). It reports pass/warn/fail and changes nothing.

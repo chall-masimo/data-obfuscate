@@ -69,11 +69,10 @@ _ = app.Services.GetRequiredService<IOptions<StorageOptions>>().Value;
 _ = app.Services.GetRequiredService<TempFileStore>();
 _ = app.Services.GetRequiredService<RecipeStore>();
 
+// No HSTS: it applies to the whole host name, not just /csvmasker, and would force HTTPS on the
+// shared server's other HTTP-only apps (e.g. SSRS) for anyone who had used this tool.
 if (!app.Environment.IsDevelopment())
-{
     app.UseExceptionHandler("/Error");
-    app.UseHsts();
-}
 
 // Friendly 403 (not in the group) and 404 pages.
 app.UseStatusCodePagesWithReExecute("/StatusCode", "?code={0}");
@@ -90,6 +89,8 @@ app.Use(async (context, next) =>
     }
 });
 
+// Redirects to HTTPS only when the site has an HTTPS binding; with HTTP only (the current
+// deployment decision) it does nothing.
 app.UseHttpsRedirection();
 app.UseRouting();
 app.UseAuthentication();

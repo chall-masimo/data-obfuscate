@@ -9,3 +9,7 @@ publish/
 
 # Test runs
 TestResults/
+
+# Server-specific settings never belong in the repo (use deploy/appsettings.Production.template.json)
+**/appsettings.Production.json
+

@@ -61,6 +61,18 @@ public class AccessTests
     }
 
     [Fact]
+    public async Task Start_page_explains_every_strategy()
+    {
+        using var app = new TestApp();
+
+        string html = await app.Browser().GetAsync("/");
+
+        Assert.Contains("data-test=\"strategy-guide\"", html);
+        foreach (var strategy in Enum.GetNames<CsvMasker.Core.Masking.MaskingStrategy>())
+            Assert.Contains($"<td><strong>{strategy}</strong></td>", html);
+    }
+
+    [Fact]
     public async Task Group_names_match_case_insensitively()
     {
         using var app = new TestApp();

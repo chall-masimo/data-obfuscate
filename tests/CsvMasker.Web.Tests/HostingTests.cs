@@ -26,8 +26,34 @@ public class HostingTests
         {
             var urls = Regex.Matches(html, @"\b(?:href|src|action)=""([^""]*)""").Select(m => m.Groups[1].Value).ToList();
             Assert.NotEmpty(urls);
-            Assert.All(urls, url => Assert.Matches(@"^/csvmasker(/|\?|$)", url));
+            Assert.All(urls, url => Assert.Matches(@"^/csvmasker(/|\?|#|$)", url));
         }
+    }
+
+    [Fact]
+    public async Task No_hsts_header_even_over_https()
+    {
+        // HSTS would apply to the whole shared host name and break its HTTP-only apps.
+        using var app = new TestApp();
+        var browser = app.Browser();
+        browser.Client.BaseAddress = new Uri("https://reports01/");
+
+        var response = await browser.GetRawAsync("/");
+
+        Assert.Equal(System.Net.HttpStatusCode.OK, response.StatusCode);
+        Assert.False(response.Headers.Contains("Strict-Transport-Security"));
+    }
+
+    [Fact]
+    public async Task Plain_http_works_without_redirect()
+    {
+        using var app = new TestApp();
+        var browser = app.Browser();
+        browser.Client.BaseAddress = new Uri("http://reports01/");
+
+        var response = await browser.GetRawAsync("/");
+
+        Assert.Equal(System.Net.HttpStatusCode.OK, response.StatusCode);
     }
 
     [Fact]
